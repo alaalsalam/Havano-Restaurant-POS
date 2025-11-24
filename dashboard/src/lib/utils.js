@@ -253,6 +253,72 @@ export async function getDefaultCustomer() {
   }
 }
 
+/**
+ * Get user transaction type mappings from HA POS Setting
+ * Returns array of transaction types available for the current user
+ * @returns {Promise<{types: string[], defaultType: string | null}>}
+ */
+export async function getUserTransactionTypes() {
+  try {
+    // Get current user
+    const currentUser = await auth.getLoggedInUser();
+    if (!currentUser || currentUser === "Guest") {
+      // If no user, return default options
+      return {
+        types: ["Sales Invoice", "Quotation"],
+        defaultType: "Sales Invoice",
+      };
+    }
+
+    // Get HA POS Setting with user_mapping
+    const settings = await db.getDocList("HA POS Setting", {
+      fields: ["name"],
+      filters: { ha_pos_settings_on: 1 },
+      limit: 1,
+    });
+
+    if (!settings || settings.length === 0) {
+      // No settings found, return default
+      return {
+        types: ["Sales Invoice", "Quotation"],
+        defaultType: "Sales Invoice",
+      };
+    }
+
+    // Get full document to access child table
+    const settingDoc = await db.getDoc("HA POS Setting", settings[0].name);
+    const userMappings = settingDoc.user_mapping || [];
+
+    // Filter mappings for current user and remove duplicates
+    const userTypes = userMappings
+      .filter((mapping) => mapping.user === currentUser)
+      .map((mapping) => mapping.type)
+      .filter(Boolean) // Remove any null/undefined
+      .filter((type, index, self) => self.indexOf(type) === index); // Remove duplicates
+
+    if (userTypes.length === 0) {
+      // No mappings for user, return default
+      return {
+        types: ["Sales Invoice", "Quotation"],
+        defaultType: "Sales Invoice",
+      };
+    }
+
+    // Return available types and default (first one)
+    return {
+      types: userTypes,
+      defaultType: userTypes[0],
+    };
+  } catch (err) {
+    console.error("Error getting user transaction types:", err);
+    // On error, return default
+    return {
+      types: ["Sales Invoice", "Quotation"],
+      defaultType: "Sales Invoice",
+    };
+  }
+}
+
 export async function callPut(endpoint, data = {}) {
   try {
     const { data: response } = await db.axios.put(endpoint, data);
