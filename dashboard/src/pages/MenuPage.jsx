@@ -25,15 +25,19 @@ const MenuPage = () => {
           <div className="flex items-center gap-4">
             <MenuCategories />
             <div className="flex items-center gap-2">
-              <label className="cursor-pointer">
+              <label className="cursor-not-allowed opacity-50">
                 <input
                   type="radio"
                   name="order-type"
                   value="dine-in"
                   checked={isDineInSelected}
                   className="peer sr-only"
+                  disabled
                   onChange={() => {}}
-                  onClick={handleDineInClick}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
                 />
                 <span className="rounded-full border border-slate-300 px-3 py-1 text-sm font-medium text-slate-600 transition-colors peer-checked:border-slate-900 peer-checked:bg-slate-900 peer-checked:text-white">
                   Dine In
