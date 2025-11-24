@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import MenuItemCard from "@/components/MenuPage/MenuItemCard";
 import { useCartStore } from "@/stores/useCartStore";
 import { useMenuStore } from "@/stores/useMenuStore";
-import { getCustomers } from "@/lib/utils";
+import { getCustomers, getUserTransactionTypes } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -25,11 +25,33 @@ const Menu = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [customers, setCustomers] = useState([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
+  const [availableTransactionTypes, setAvailableTransactionTypes] = useState(["Sales Invoice", "Quotation"]);
   console.log(menuItems);
 
   useEffect(() => {
     fetchMenuItems();
   }, [fetchMenuItems]);
+
+  // Fetch user transaction types from user mapping
+  useEffect(() => {
+    const fetchUserTransactionTypes = async () => {
+      try {
+        const { types, defaultType } = await getUserTransactionTypes();
+        setAvailableTransactionTypes(types);
+        
+        // Set default transaction type if not already set or if current type is not available
+        const currentType = transactionType;
+        if (defaultType && (!currentType || !types.includes(currentType))) {
+          setTransactionType(defaultType);
+        }
+      } catch (err) {
+        console.error("Error loading user transaction types:", err);
+        // Keep default types on error
+      }
+    };
+    fetchUserTransactionTypes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -75,13 +97,17 @@ const Menu = () => {
           <Select
             value={transactionType}
             onValueChange={setTransactionType}
+            disabled={availableTransactionTypes.length === 0}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Transaction Type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Quotation">Quotation</SelectItem>
-              <SelectItem value="Sales Invoice">Sales Invoice</SelectItem>
+              {availableTransactionTypes.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Combobox
