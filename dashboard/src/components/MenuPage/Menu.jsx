@@ -19,6 +19,7 @@ import NumPad from "./UpdateCartDialog";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useTransactionTypes } from "@/hooks/useTransactionTypes";
 import { useFilteredMenuItems } from "@/hooks/useFilteredMenuItems";
+import { useMenuNavigation } from "@/hooks/useMenuNavigation";
 
 const Menu = () => {
   const { menuItems, fetchMenuItems } = useMenuStore();
@@ -43,6 +44,11 @@ const Menu = () => {
     searchTerm,
     selectedCategoryId
   );
+
+  const { currentIndex, setCurrentIndex } = useMenuNavigation({
+    NUMBER_OF_COLUMNS: 5,
+    items: filteredItems,
+  });
 
   useEffect(() => {
     fetchMenuItems();
@@ -106,8 +112,13 @@ const Menu = () => {
       </div>
 
       <div className="grid grid-cols-5 gap-4">
-        {filteredItems.map((item) => (
-          <MenuItemCard key={item.name} item={item} />
+        {filteredItems.map((item, index) => (
+          <MenuItemCard 
+            key={item.name} 
+            item={item} 
+            index={index}
+            currentIndex={currentIndex} 
+            setCurrentIndex={setCurrentIndex} />
         ))}
       </div>
     </>

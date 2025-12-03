@@ -4,7 +4,7 @@ export function useFilteredMenuItems(menuItems, searchTerm, selectedCategoryId) 
 	return useMemo(() => {
 		const term = searchTerm.trim().toLowerCase();
 
-		return menuItems.filter((item) => {
+		const initialfilteredItems = [...menuItems].filter((item) => {
 			const matchesCategory =
 				!selectedCategoryId ||
 				selectedCategoryId === "all" ||
@@ -15,5 +15,26 @@ export function useFilteredMenuItems(menuItems, searchTerm, selectedCategoryId) 
 
 			return matchesCategory && matchesSearch;
 		});
+
+		if (initialfilteredItems.length === 0) {
+			const filteredItems = menuItems.filter((item) => {
+					const label = (item.item_name || item.name || "").toLowerCase();
+					const matchesSearch = !term || label.includes(term);
+
+					return matchesSearch;
+				});
+
+			return filteredItems;
+		}
+
+
+		return initialfilteredItems;
 	}, [menuItems, searchTerm, selectedCategoryId]);
+}
+
+function addIndexToItems(items) {
+	return items.map((item, index) => ({
+		...item,
+		index,
+	}));
 }
