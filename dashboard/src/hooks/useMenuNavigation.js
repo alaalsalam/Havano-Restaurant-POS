@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { useCartStore } from "@/stores/useCartStore";
 
-export const useMenuNavigation = ({ NUMBER_OF_COLUMNS, items }) => {
+export const useMenuNavigation = ({ NUMBER_OF_COLUMNS, items, target }) => {
 	const [currentIndex, setCurrentIndex] = useState(0);
-	const [target, setTarget] = useState("menu");
 	const addToCart = useCartStore((state) => state.addToCart);
 	const numberOfItems = items.length;
 
@@ -83,5 +82,5 @@ export const useMenuNavigation = ({ NUMBER_OF_COLUMNS, items }) => {
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [currentIndex, NUMBER_OF_COLUMNS, numberOfItems, target]);
 
-	return { currentIndex, setCurrentIndex, target, setTarget };
+	return { currentIndex, setCurrentIndex};
 };

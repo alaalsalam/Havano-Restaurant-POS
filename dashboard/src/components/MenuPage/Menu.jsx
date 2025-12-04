@@ -21,7 +21,7 @@ import { useTransactionTypes } from "@/hooks/useTransactionTypes";
 import { useFilteredMenuItems } from "@/hooks/useFilteredMenuItems";
 import { useMenuNavigation } from "@/hooks/useMenuNavigation";
 
-const Menu = () => {
+const Menu = ({ target }) => {
   const { menuItems, fetchMenuItems } = useMenuStore();
   const selectedCategory = useCartStore((state) => state.selectedCategory);
   const selectedCategoryId = selectedCategory?.id;
@@ -45,9 +45,10 @@ const Menu = () => {
     selectedCategoryId
   );
 
-  const { currentIndex, setCurrentIndex, target } = useMenuNavigation({
+  const { currentIndex, setCurrentIndex } = useMenuNavigation({
     NUMBER_OF_COLUMNS: 5,
     items: filteredItems,
+    target
   });
 
   useEffect(() => {

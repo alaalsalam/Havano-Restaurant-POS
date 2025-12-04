@@ -175,10 +175,10 @@ const Cart = () => {
       return;
     }
 
-    // For Sales Invoice, create Sales Invoice first, then open payment dialog
+    
     setIsSubmitting(true);
     try {
-      // Get customer - use selected customer or default from settings
+      
       let selectedCustomer = customer;
       if (!selectedCustomer) {
         selectedCustomer = await getDefaultCustomer();
@@ -192,14 +192,14 @@ const Cart = () => {
         }
       }
 
-      // Convert cart items to the format expected by createTransaction
+      
       const items = cart.map((item) => ({
         item_code: item.name || item.item_name,
         qty: item.quantity || 1,
         rate: item.price || item.standard_rate || 0,
       }));
 
-      // Create Sales Invoice first (this will also create HA Order)
+      // Create Sales Invoice first
       const invoiceResult = await createTransaction(
         "Sales Invoice", 
         selectedCustomer, 
@@ -212,7 +212,7 @@ const Cart = () => {
       );
       
       if (invoiceResult && invoiceResult.success !== false && invoiceResult.name) {
-        // Sales Invoice created successfully, now open payment dialog
+        
         setPaymentState({
           open: true,
           orderId: null,

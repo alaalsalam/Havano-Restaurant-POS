@@ -4,11 +4,12 @@ import MenuCategories from "@/components/MenuPage/MenuCategories";
 import Container from "@/components/Shared/Container";
 import { useCartStore } from "@/stores/useCartStore";
 import { useNavigate } from "react-router-dom";
-
+import {useState} from "react";
 const MenuPage = () => {
   const navigate = useNavigate();
   const { startNewTakeAwayOrder, activeTableId } = useCartStore();
   const isDineInSelected = Boolean(activeTableId);
+  const [target, setTarget] = useState("menu");
 
   const handleDineInClick = () => {
     navigate("/tables");
@@ -22,11 +23,10 @@ const MenuPage = () => {
     <Container>
       <div className="grid grid-cols-9 gap-4 relative z-0">
         <div className="col-span-1 border-r pr-4">
-          <MenuCategories />
+          <MenuCategories target={target} />
         </div>
         <div className="col-span-6">
           <div className="flex items-center gap-4">
-            {/* <MenuCategories /> */}
             <div className="flex items-center gap-2">
               <label className="cursor-not-allowed opacity-50">
                 <input
@@ -62,10 +62,10 @@ const MenuPage = () => {
               </label>
             </div>
           </div>
-          <Menu />
+          <Menu target={target}/>
         </div>
         <div className="col-span-2">
-          <Cart />
+          <Cart  target={target}/>
         </div>
       </div>
     </Container>
