@@ -2,9 +2,17 @@ import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/stores/useCartStore";
 
+import { useMenuContext } from "@/contexts/MenuContext";
+
 import { Card, CardHeader, CardTitle } from "../ui/card";
 
-const MenuItemCard = ({ item, index , currentIndex, setCurrentIndex, target }) => {
+const MenuItemCard = ({ item, index }) => {
+  const {
+    currentIndex,
+    setCurrentIndex,
+    target,
+  } = useMenuContext();
+  
   const addToCart = useCartStore((state) => state.addToCart);
   const isActive = currentIndex === index && target === "menu";
 

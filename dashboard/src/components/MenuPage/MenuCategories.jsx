@@ -1,50 +1,13 @@
-import { useEffect, useMemo } from "react";
-
-import { useMenuStore } from "@/stores/useMenuStore";
-import { useCartStore } from "@/stores/useCartStore";
-
-import {
-  useCategoryColors,
-  useCategoryCounts,
-  useSortedCategories
-} from "@/hooks"
+import { useMenuContext } from "@/contexts/MenuContext";
 
 const MenuCategories = () => {
-  const { menuCategories, fetchMenuCategories } = useMenuStore();
-  const selectedCategory = useCartStore((s) => s.selectedCategory);
-  const setSelectedCategory = useCartStore((s) => s.setSelectedCategory);
-
-  const categories = useSortedCategories(menuCategories);
-  const categoryColors = useCategoryColors(categories);
-  const categoryCounts = useCategoryCounts(categories);
-
-  const visibleCategories = useMemo(
-    () =>
-      categories.filter((c) => {
-        const count = categoryCounts[c.name];
-        return count === undefined || count > 0;
-      }),
-    [categories, categoryCounts]
-  );
-
-  useEffect(() => {
-    fetchMenuCategories();
-  }, [fetchMenuCategories]);
-
-  useEffect(() => {
-    if (!visibleCategories.length) {
-      setSelectedCategory(null);
-      return;
-    }
-
-    setSelectedCategory((prev) => {
-      if (prev?.id && visibleCategories.some((c) => c.name === prev.id)) {
-        return prev;
-      }
-      const first = visibleCategories[0];
-      return { id: first.name, name: first.category_name };
-    });
-  }, [visibleCategories, setSelectedCategory]);
+  const {
+    selectedCategory,
+    categoryColors,
+    categoryCounts,
+    visibleCategories,
+    setSelectedCategory,
+  } = useMenuContext();
 
   return (
 
@@ -87,8 +50,6 @@ const MenuCategories = () => {
             ))}
           </div>
         </div>
-    //   </DrawerContent>
-    // </Drawer>
   );
 };
 

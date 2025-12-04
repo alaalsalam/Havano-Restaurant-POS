@@ -58,7 +58,7 @@ export default function useCartSubmission({
 						customerName || customer
 					);
 
-					if (result?.sales_invoice) {
+					if (result?.success && result?.sales_invoice) {
 						setPaymentState({
 							open: true,
 							items: cart,
@@ -89,6 +89,23 @@ export default function useCartSubmission({
 					}
 				}
 			} catch (err) {
+				// Log the full result for debugging
+				const result = err?.response?.data;
+				console.error("Convert quotation failed:", result);
+				
+				// Build a comprehensive error message
+				let errorMessage = result?.message || "Failed to convert quotation";
+				if (result?.details) {
+					errorMessage += `: ${result.details}`;
+				}
+				if (result?.error_type) {
+					errorMessage += ` (${result.error_type})`;
+				}
+				
+				toast.error("Failed to convert quotation", {
+					description: errorMessage,
+					duration: 8000, // Longer duration to read the error
+				});
 				console.error(err);
 				toast.error(err.message || "Quotation failed");
 			} finally {

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import Cart from "@/components/MenuPage/Cart";
 import Menu from "@/components/MenuPage/Menu";
 import MenuCategories from "@/components/MenuPage/MenuCategories";
@@ -5,11 +6,29 @@ import Container from "@/components/Shared/Container";
 import { useCartStore } from "@/stores/useCartStore";
 import { useNavigate } from "react-router-dom";
 import {useState} from "react";
+import { useCartSubmission } from "@/hooks";
+import { MenuProvider } from "@/contexts/MenuContext";
+
 const MenuPage = () => {
+  // const {handleSubmitOrder} = useCartSubmission();
   const navigate = useNavigate();
   const { startNewTakeAwayOrder, activeTableId } = useCartStore();
   const isDineInSelected = Boolean(activeTableId);
-  const [target, setTarget] = useState("menu");
+
+  // useEffect(() => {
+  //   const handleSubmitShortcut = (event) => {
+  //     if (event.key === "F10") {
+  //       event.preventDefault();
+  //       handleSubmitOrder();
+  //     }
+  //   };
+
+  //   window.addEventListener("keydown", handleSubmitShortcut);
+  //   return () => {
+  //     window.removeEventListener("keydown", handleSubmitShortcut);
+  //   };
+
+  // }, [handleSubmitOrder]);
 
   const handleDineInClick = () => {
     navigate("/tables");
@@ -20,55 +39,57 @@ const MenuPage = () => {
   };
 
   return (
-    <Container>
-      <div className="grid grid-cols-9 gap-4 relative z-0">
-        <div className="col-span-1 border-r pr-4">
-          <MenuCategories target={target} />
-        </div>
-        <div className="col-span-6">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <label className="cursor-not-allowed opacity-50">
-                <input
-                  type="radio"
-                  name="order-type"
-                  value="dine-in"
-                  checked={isDineInSelected}
-                  className="peer sr-only"
-                  disabled
-                  onChange={() => {}}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                />
-                <span className="rounded-full border border-slate-300 px-3 py-1 text-sm font-medium text-slate-600 transition-colors peer-checked:border-slate-900 peer-checked:bg-slate-900 peer-checked:text-white">
-                  Dine In
-                </span>
-              </label>
-              <label className="cursor-pointer">
-                <input
-                  type="radio"
-                  name="order-type"
-                  value="take-away"
-                  checked={!isDineInSelected}
-                  className="peer sr-only"
-                  onChange={() => {}}
-                  onClick={handleTakeAwayClick}
-                />
-                <span className="rounded-full border border-slate-300 px-3 py-1 text-sm font-medium text-slate-600 transition-colors peer-checked:border-slate-900 peer-checked:bg-slate-900 peer-checked:text-white">
-                  Take Away
-                </span>
-              </label>
-            </div>
+    <MenuProvider>
+      <Container>
+        <div className="grid grid-cols-9 gap-4 relative z-0">
+          <div className="col-span-1 border-r pr-4">
+            <MenuCategories />
           </div>
-          <Menu target={target}/>
+          <div className="col-span-6">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="cursor-not-allowed opacity-50">
+                  <input
+                    type="radio"
+                    name="order-type"
+                    value="dine-in"
+                    checked={isDineInSelected}
+                    className="peer sr-only"
+                    disabled
+                    onChange={() => {}}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                  />
+                  <span className="rounded-full border border-slate-300 px-3 py-1 text-sm font-medium text-slate-600 transition-colors peer-checked:border-slate-900 peer-checked:bg-slate-900 peer-checked:text-white">
+                    Dine In
+                  </span>
+                </label>
+                <label className="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="order-type"
+                    value="take-away"
+                    checked={!isDineInSelected}
+                    className="peer sr-only"
+                    onChange={() => {}}
+                    onClick={handleTakeAwayClick}
+                  />
+                  <span className="rounded-full border border-slate-300 px-3 py-1 text-sm font-medium text-slate-600 transition-colors peer-checked:border-slate-900 peer-checked:bg-slate-900 peer-checked:text-white">
+                    Take Away
+                  </span>
+                </label>
+              </div>
+            </div>
+            <Menu/>
+          </div>
+          <div className="col-span-2">
+            <Cart />
+          </div>
         </div>
-        <div className="col-span-2">
-          <Cart  target={target}/>
-        </div>
-      </div>
-    </Container>
+      </Container>
+    </MenuProvider>
   );
 };
 

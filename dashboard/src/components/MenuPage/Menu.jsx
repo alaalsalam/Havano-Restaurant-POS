@@ -1,9 +1,8 @@
 import { Search } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 
 import MenuItemCard from "@/components/MenuPage/MenuItemCard";
-import { useCartStore } from "@/stores/useCartStore";
-import { useMenuStore } from "@/stores/useMenuStore";
+import { useMenuContext } from "@/contexts/MenuContext";
 
 import {
   Select,
@@ -15,37 +14,26 @@ import {
 import { Combobox } from "../ui/combobox";
 
 import NumPad from "./UpdateCartDialog";
-import {useCustomers, useTransactionTypes, useFilteredMenuItems, useMenuNavigation} from "@/hooks"
 
-const Menu = ({ target }) => {
-  const { menuItems, fetchMenuItems } = useMenuStore();
-  const selectedCategory = useCartStore((state) => state.selectedCategory);
-  const selectedCategoryId = selectedCategory?.id;
-  const { customer, transactionType, setCustomer, setTransactionType } =
-    useCartStore();
-
-  const [searchTerm, setSearchTerm] = useState("");
-
+const Menu = () => {
   const {
+    fetchMenuItems,
+    selectedCategory,
+    selectedCategoryId,
+    customer,
+    transactionType,
+    setTransactionType,
+    setCustomer,
+    searchTerm,
+    setSearchTerm,
     customers,
     loading: loadingCustomers,
     fetchCustomers,
-  } = useCustomers();
-  const availableTransactionTypes = useTransactionTypes(
-    transactionType,
-    setTransactionType
-  );
-  const filteredItems = useFilteredMenuItems(
-    menuItems,
-    searchTerm,
-    selectedCategoryId
-  );
-
-  const { currentIndex, setCurrentIndex } = useMenuNavigation({
-    NUMBER_OF_COLUMNS: 5,
-    items: filteredItems,
-    target
-  });
+    availableTransactionTypes,
+    filteredItems,
+    currentIndex,
+    setCurrentIndex
+  } = useMenuContext();
 
   useEffect(() => {
     fetchMenuItems();
@@ -114,9 +102,7 @@ const Menu = ({ target }) => {
             key={item.name} 
             item={item} 
             index={index}
-            target={target}
-            currentIndex={currentIndex} 
-            setCurrentIndex={setCurrentIndex} />
+             />
         ))}
       </div>
     </>
