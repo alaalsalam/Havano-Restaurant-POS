@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useCartStore } from "@/stores/useCartStore";
 
-export default function useMenuNavigation({ NUMBER_OF_COLUMNS, items, target, setTarget, visibleCategories, handleSubmitOrder }) {
+export default function useMenuNavigation({ NUMBER_OF_COLUMNS, items, target, setTarget, visibleCategories }) {
 	const [currentIndex, setCurrentIndex] = useState(0);
 	const {addToCart, cart, removeFromCart, openUpdateDialog} = useCartStore();
 	const numberOfItems = items.length;
@@ -97,6 +97,7 @@ export default function useMenuNavigation({ NUMBER_OF_COLUMNS, items, target, se
 				break;
 
 			case "*":
+				event.preventDefault();
 				openUpdateDialog(cart[currentIndex]);
 				break;
 			default:
@@ -138,9 +139,6 @@ export default function useMenuNavigation({ NUMBER_OF_COLUMNS, items, target, se
 
 	useEffect(() => {
 		const handleKeyDown = (event) => {
-			if (event.shiftKey && event.code === "Digit8") {
-				handleSubmitOrder();
-			}
 			if (target === "menu") {
 				handleMenuNavigation(event);
 			} else if (target === "cart") {

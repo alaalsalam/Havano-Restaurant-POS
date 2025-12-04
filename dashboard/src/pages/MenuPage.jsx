@@ -5,30 +5,12 @@ import MenuCategories from "@/components/MenuPage/MenuCategories";
 import Container from "@/components/Shared/Container";
 import { useCartStore } from "@/stores/useCartStore";
 import { useNavigate } from "react-router-dom";
-import {useState} from "react";
-import { useCartSubmission } from "@/hooks";
 import { MenuProvider } from "@/contexts/MenuContext";
 
 const MenuPage = () => {
-  // const {handleSubmitOrder} = useCartSubmission();
   const navigate = useNavigate();
   const { startNewTakeAwayOrder, activeTableId } = useCartStore();
   const isDineInSelected = Boolean(activeTableId);
-
-  // useEffect(() => {
-  //   const handleSubmitShortcut = (event) => {
-  //     if (event.key === "F10") {
-  //       event.preventDefault();
-  //       handleSubmitOrder();
-  //     }
-  //   };
-
-  //   window.addEventListener("keydown", handleSubmitShortcut);
-  //   return () => {
-  //     window.removeEventListener("keydown", handleSubmitShortcut);
-  //   };
-
-  // }, [handleSubmitOrder]);
 
   const handleDineInClick = () => {
     navigate("/tables");

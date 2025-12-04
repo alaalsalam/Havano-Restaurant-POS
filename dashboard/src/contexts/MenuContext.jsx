@@ -1,13 +1,11 @@
-import { createContext, useContext, useState, useEffect, useMemo } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { useCartStore } from "@/stores/useCartStore";
 import { useMenuStore } from "@/stores/useMenuStore";
-import { useOrderStore } from "@/stores/useOrderStore";
 import {
   useCustomers,
   useTransactionTypes,
   useFilteredMenuItems,
   useMenuNavigation,
-  useCartSubmission,
   useSortedCategories,
   useCategoryColors,
   useCategoryCounts
@@ -19,7 +17,6 @@ export function MenuProvider({ children }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [target, setTarget] = useState("menu");
   const { menuItems, fetchMenuItems, menuCategories, fetchMenuCategories } = useMenuStore();
-  const { fetchOrders, fetchTableOrders } = useOrderStore();
 
   const {
     cart,
@@ -72,21 +69,6 @@ export function MenuProvider({ children }) {
     });
   }, [visibleCategories, setSelectedCategory]);
 
-    const { handleSubmitOrder, isSubmitting, paymentState, setPaymentState } =
-      useCartSubmission({
-        cart,
-        transactionType,
-        customer,
-        orderType,
-        activeTableId,
-        activeWaiterId,
-        customerName,
-        activeQuotationId,
-        clearCart,
-        fetchOrders,
-        fetchTableOrders,
-      });
-
   const selectedCategoryId = selectedCategory?.id;
 
   const { customers, loadingCustomers, fetchCustomers } = useCustomers();
@@ -102,13 +84,13 @@ export function MenuProvider({ children }) {
     selectedCategoryId
   );
 
+
   const { currentIndex, setCurrentIndex } = useMenuNavigation({
     NUMBER_OF_COLUMNS: 5,
     items: filteredItems,
     target,
     setTarget,
-    visibleCategories,
-    handleSubmitOrder
+    visibleCategories
   });
 
   return (
@@ -140,16 +122,15 @@ export function MenuProvider({ children }) {
         activeTableId,
         activeQuotationId,
         clearCart,
-        handleSubmitOrder,
-        isSubmitting,
-        paymentState,
-        setPaymentState,
         categories,
         categoryColors,
         categoryCounts,
         visibleCategories,
         selectedCategory,
         setSelectedCategory,
+        orderType,
+        activeWaiterId,
+        customerName,
       }}
     >
       {children}

@@ -11,7 +11,8 @@
   "allow_staff_to_void_orders",
   "column_break_paee",
   "default_account",
-  "default_take_away_customer"
+  "default_take_away_customer",
+  "restaurant_mode"
  ],
  "fields": [
   {
@@ -53,13 +54,19 @@
   {
    "fieldname": "column_break_paee",
    "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "restaurant_mode",
+   "fieldtype": "Check",
+   "label": "Restaurant Mode"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-10-31 11:03:58.930012",
+ "modified": "2025-12-04 17:15:23.901112",
  "modified_by": "Administrator",
  "module": "Havano Restaurant Pos",
  "name": "Sample POS Settings",

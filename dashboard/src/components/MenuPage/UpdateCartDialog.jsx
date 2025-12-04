@@ -68,6 +68,20 @@ const UpdateCartDialog = () => {
     setShowQuantityKeyboard(true);
     closeUpdateDialog();
   });
+  
+  useEffect(() => {
+    function handleEnter(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (!quantityValue) return;
+        handleConfirm();
+      }
+    }
+    document.addEventListener("keydown", handleEnter);
+    return () => {
+      document.removeEventListener("keydown", handleEnter);
+    };
+  })
 
   return (
     <>

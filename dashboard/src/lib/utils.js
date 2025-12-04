@@ -253,6 +253,20 @@ export async function getDefaultCustomer() {
   }
 }
 
+export async function isRestaurantMode() {
+  try {
+    const { message } = await db.getSingleValue(
+      "Sample POS Settings",
+      "restaurant_mode"
+    );
+    return message || false;
+  } catch (err) {
+    console.error("Error fetching Sample POS Settings.is_restaurant_mode:", err);
+    return false;
+  }
+  
+}
+
 /**
  * Get user transaction type mappings from HA POS Setting
  * Returns array of transaction types available for the current user
