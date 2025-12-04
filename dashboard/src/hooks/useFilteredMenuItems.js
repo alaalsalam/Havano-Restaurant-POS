@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-export function useFilteredMenuItems(menuItems, searchTerm, selectedCategoryId) {
+export default function useFilteredMenuItems(menuItems, searchTerm, selectedCategoryId) {
 	return useMemo(() => {
 		const term = searchTerm.trim().toLowerCase();
 
@@ -30,11 +30,4 @@ export function useFilteredMenuItems(menuItems, searchTerm, selectedCategoryId) 
 
 		return initialfilteredItems;
 	}, [menuItems, searchTerm, selectedCategoryId]);
-}
-
-function addIndexToItems(items) {
-	return items.map((item, index) => ({
-		...item,
-		index,
-	}));
 }

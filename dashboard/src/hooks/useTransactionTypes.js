@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getUserTransactionTypes } from "@/lib/utils";
 
-export function useTransactionTypes(currentType, setTransactionType) {
+export default function useTransactionTypes(currentType, setTransactionType) {
 	const [availableTypes, setAvailableTypes] = useState(["Sales Invoice", "Quotation"]);
 
 	useEffect(() => {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getBgColor } from "@/lib/utils";
 
-export function useCategoryColors(categories) {
+export default function useCategoryColors(categories) {
 	const [colors, setColors] = useState({});
 
 	useEffect(() => {

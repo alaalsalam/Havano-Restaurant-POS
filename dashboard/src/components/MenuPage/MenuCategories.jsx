@@ -3,10 +3,11 @@ import { useEffect, useMemo } from "react";
 import { useMenuStore } from "@/stores/useMenuStore";
 import { useCartStore } from "@/stores/useCartStore";
 
-import { useSortedCategories } from "@/hooks/useSortedCategories";
-import { useCategoryColors } from "@/hooks/useCategoryColors";
-import { useCategoryCounts } from "@/hooks/useCategoryCounts";
-
+import {
+  useCategoryColors,
+  useCategoryCounts,
+  useSortedCategories
+} from "@/hooks"
 
 const MenuCategories = () => {
   const { menuCategories, fetchMenuCategories } = useMenuStore();

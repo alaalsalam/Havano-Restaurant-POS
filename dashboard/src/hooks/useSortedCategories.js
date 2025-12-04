@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-export function useSortedCategories(menuCategories) {
+export default function useSortedCategories(menuCategories) {
 	return useMemo(() => {
 		if (!menuCategories) return [];
 		return [...menuCategories].sort((a, b) => {

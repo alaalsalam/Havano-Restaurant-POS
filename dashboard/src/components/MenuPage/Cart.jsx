@@ -3,7 +3,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast,Toaster } from "sonner";
 
-import { formatCurrency, handleCreateOrder, handleUpdateOrder, createTransaction, getDefaultCustomer, convertQuotationToSalesInvoiceFromCart } from "@/lib/utils";
+import { 
+  formatCurrency,
+  createTransaction, 
+  getDefaultCustomer, 
+  convertQuotationToSalesInvoiceFromCart,
+  generate_quotation_json
+} from "@/lib/utils";
 import { useCartStore } from "@/stores/useCartStore";
 import { useOrderStore } from "@/stores/useOrderStore";
 
@@ -18,7 +24,6 @@ import {
 } from "../ui/card";
 import UpdateCartDialog from "./UpdateCartDialog";
 import PaymentDialog from "./PaymentDialog";
-import { generate_quotation_json } from "@/lib/utils";
 
 const Cart = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);

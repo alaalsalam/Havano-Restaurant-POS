@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useCartStore } from "@/stores/useCartStore";
 
-export const useMenuNavigation = ({ NUMBER_OF_COLUMNS, items, target }) => {
+export default function useMenuNavigation({ NUMBER_OF_COLUMNS, items, target }) {
 	const [currentIndex, setCurrentIndex] = useState(0);
 	const addToCart = useCartStore((state) => state.addToCart);
 	const numberOfItems = items.length;

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { getCustomers } from "@/lib/utils";
 import { toast } from "sonner";
 
-export function useCustomers() {
+export default function useCustomers() {
 	const [customers, setCustomers] = useState([]);
 	const [loading, setLoading] = useState(true);
 

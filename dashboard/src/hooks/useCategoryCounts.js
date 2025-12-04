@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getNumberOfItems } from "@/lib/utils";
 
-export function useCategoryCounts(categories) {
+export default function useCategoryCounts(categories) {
 	const [counts, setCounts] = useState({});
 
 	useEffect(() => {

@@ -585,3 +585,19 @@ export async function generate_quotation_json(quote_number) {
     "get invoice json"
   );
 }
+
+export function transformCartToItems(cart = []) {
+	return cart.map((item) => ({
+		item_code: item.name || item.item_name,
+		qty: item.quantity || 1,
+		rate: item.price ?? item.standard_rate ?? 0,
+	}));
+}
+
+export function calculateCartTotal(cart = []) {
+	return cart.reduce((total, item) => {
+		const price = item.price ?? item.standard_rate ?? 0;
+		const quantity = item.quantity ?? 1;
+		return total + price * quantity;
+	}, 0);
+}

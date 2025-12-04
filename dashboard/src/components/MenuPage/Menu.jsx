@@ -13,13 +13,9 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Combobox } from "../ui/combobox";
-import { toast } from "sonner";
 
 import NumPad from "./UpdateCartDialog";
-import { useCustomers } from "@/hooks/useCustomers";
-import { useTransactionTypes } from "@/hooks/useTransactionTypes";
-import { useFilteredMenuItems } from "@/hooks/useFilteredMenuItems";
-import { useMenuNavigation } from "@/hooks/useMenuNavigation";
+import {useCustomers, useTransactionTypes, useFilteredMenuItems, useMenuNavigation} from "@/hooks"
 
 const Menu = ({ target }) => {
   const { menuItems, fetchMenuItems } = useMenuStore();
