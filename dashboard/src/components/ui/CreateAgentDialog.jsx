@@ -12,10 +12,10 @@ import {
 } from "./dialog";
 import { Input } from "./input";
 import { Label } from "./label";
-import { createCustomer } from "@/lib/utils";
+import { createAgent } from "@/lib/utils";
 import { toast } from "sonner";
 
-export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCustomerName = "" }) {
+export function CreateAgentDialog({ open, onOpenChange, onCreated, initialAgentName = "" }) {
   const [loading, setLoading] = useState(false);
   const {
     register,
@@ -28,43 +28,42 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
   const onSubmit = async (data) => {
     setLoading(true);
     try {
-      const result = await createCustomer(data.customer_name, data.mobile_no);
+      const result = await createAgent(data.full_name, data.certificate_no, data.qualification);
       
       if (result && result.success) {
-        // Call the callback with the new customer
+        // Call the callback with the new agent
         if (onCreated) {
           onCreated({
-            name: result.customer,
-            customer_name: result.customer_name,
-            value: result.customer,
-            label: result.customer_name,
+            name: result.message.name,
+            value: result.message.name,
+            label: result.message.full_name,
           });
         }
         
         reset();
         onOpenChange(false);
       } else {
-        toast.error("Failed to Create Customer", {
+        toast.error("Failed to Create Agent", {
           description: result?.message || "Please try again",
           duration: 5000,
         });
       }
     } catch (err) {
       toast.error("Server Error", {
-        description: "Unable to create customer. Please try again later.",
+        description: "Unable to create agent. Please try again later.",
         duration: 5000,
       });
-      console.error("Customer creation error:", err);
+      console.error("Agent creation error:", err);
     } finally {
       setLoading(false);
     }
   };
 
   React.useEffect(() => {
-    if (open && initialCustomerName) {
-      setValue("customer_name", initialCustomerName);
+    if (open && initialAgentName) {
+      setValue("full_name", initialAgentName);
     }
-  }, [open, initialCustomerName, setValue]);
+  }, [open, initialAgentName, setValue]);
 
   const handleOpenChange = (isOpen) => {
     if (!isOpen) {
@@ -77,38 +76,45 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Create New Customer</DialogTitle>
+          <DialogTitle>Create New Agent</DialogTitle>
           <DialogDescription>
-            Enter customer details to create a new customer.
+            Enter agent details to create a new agent.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="customer_name">
-                Customer Name <span className="text-red-500">*</span>
+              <Label htmlFor="full_name">
+                Agent Full Name <span className="text-red-500">*</span>
               </Label>
               <Input
-                id="customer_name"
-                {...register("customer_name", {
-                  required: "Customer name is required",
+                id="full_name"
+                {...register("full_name", {
+                  required: "Full name is required",
                 })}
-                placeholder="Enter customer name"
-                className={errors.customer_name ? "border-red-500" : ""}
+                placeholder="Enter agent full name"
+                className={errors.full_name ? "border-red-500" : ""}
               />
-              {errors.customer_name && (
-                <p className="text-sm text-red-500">
-                  {errors.customer_name.message}
-                </p>
+              {errors.full && (
+                <p className="text-sm text-red-500">{errors.full.message}</p>
               )}
             </div>
+
             <div className="grid gap-2">
-              <Label htmlFor="mobile_no">Mobile Number</Label>
+              <Label htmlFor="certificate_no">Certificate Number</Label>
               <Input
-                id="mobile_no"
-                type="tel"
-                {...register("mobile_no")}
-                placeholder="Enter mobile number (optional)"
+                id="certificate_no"
+                {...register("certificate_no")}
+                placeholder="Enter certificate number (optional)"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="qualification">Qualification</Label>
+              <Input
+                id="qualification"
+                {...register("qualification")}
+                placeholder="Enter qualification (optional)"
               />
             </div>
           </div>
@@ -122,7 +128,7 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create Customer"}
+              {loading ? "Creating..." : "Create Agent"}
             </Button>
           </DialogFooter>
         </form>

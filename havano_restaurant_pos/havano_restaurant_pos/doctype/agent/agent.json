@@ -1,6 +1,6 @@
 {
  "actions": [],
- "allow_rename": 1,
+ "autoname": "format:AGENT-{####}",
  "creation": "2025-12-04 19:37:19.904306",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -15,7 +15,9 @@
   {
    "fieldname": "full_name",
    "fieldtype": "Data",
-   "label": "Full Name"
+   "in_list_view": 1,
+   "label": "Full Name",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_aiba",
@@ -39,10 +41,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-04 19:39:48.106110",
+ "modified": "2025-12-05 12:45:36.627038",
  "modified_by": "Administrator",
  "module": "Havano Restaurant Pos",
  "name": "Agent",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

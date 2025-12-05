@@ -1,8 +1,10 @@
 import { Search } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import MenuItemCard from "@/components/MenuPage/MenuItemCard";
 import { useMenuContext } from "@/contexts/MenuContext";
+
+import { useAgents } from "@/hooks";
 
 import {
   Select,
@@ -35,6 +37,27 @@ const Menu = () => {
     setCurrentIndex
   } = useMenuContext();
 
+  const {
+		// data
+		agents,
+		setAgents,
+
+		// fetch state
+		isFetchingAgents,
+		fetchAgentsError,
+
+		// create state
+		isCreatingAgent,
+		createAgentError,
+
+		// actions
+		fetchAgents,
+		makeAgent,
+	} = useAgents();
+
+  const [selectedAgent, setSelectedAgent] = useState(null);
+
+
   useEffect(() => {
     fetchMenuItems();
   }, [fetchMenuItems]);
@@ -64,6 +87,29 @@ const Menu = () => {
           </Select>
 
           <Combobox
+            type="agent"
+            options={agents.map((agent) => ({
+              value: agent.name,
+              name: agent.name,
+              label: agent.full_name,
+            }))}
+            value={selectedAgent}
+            onValueChange={setSelectedAgent}
+            placeholder={
+              isFetchingAgents ? "Loading agents..." : "Select agent"
+            }
+            searchPlaceholder="Search agent..."
+            disabled={isFetchingAgents}
+            className="w-[200px]"
+            onCreate
+            onCreated={(newAgent) => {
+              fetchAgents();
+              setSelectedAgent(newAgent.value || newAgent.full_name);
+            }}
+          />
+
+          <Combobox
+            type="customer"
             options={customers.map((cust) => ({
               value: cust.name,
               name: cust.name,
@@ -76,8 +122,8 @@ const Menu = () => {
             searchPlaceholder="Search customers..."
             disabled={loadingCustomers}
             className="w-[200px]"
-            onCreateCustomer
-            onCustomerCreated={(newCustomer) => {
+            onCreate
+            onCreated={(newCustomer) => {
               fetchCustomers();
               setCustomer(newCustomer.value);
             }}
@@ -98,11 +144,7 @@ const Menu = () => {
 
       <div className="grid grid-cols-5 gap-4">
         {filteredItems.map((item, index) => (
-          <MenuItemCard 
-            key={item.name} 
-            item={item} 
-            index={index}
-             />
+          <MenuItemCard key={item.name} item={item} index={index} />
         ))}
       </div>
     </>

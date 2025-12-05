@@ -4,7 +4,6 @@ from frappe.utils import flt
 from datetime import datetime
 
 
-
 @frappe.whitelist()
 def get_customers():
     """Get all active customers"""
@@ -86,6 +85,44 @@ def create_customer(customer_name, mobile_no=None):
             "details": str(e),
         }
 
+@frappe.whitelist()
+def get_agents():
+    try:
+        agents = frappe.get_all("Agent", fields=["name", "full_name", "certificate_no", "qualification"])
+        return {
+            "success": True,
+            "message": agents,
+        }
+    except Exception as e:
+        title = "Error getting agents"
+        frappe.log_error(frappe.get_traceback(), title)
+        return {
+            "success": False,
+            "message": "Failed to get agents",
+            "details": str(e),
+        }
+
+@frappe.whitelist()
+def create_agent(full_name, certificate_no=None, qualification=None):
+    try:
+        agent = frappe.new_doc("Agent")
+        agent.full_name = full_name
+        agent.certificate_no = certificate_no
+        agent.qualification = qualification
+        agent.save(ignore_permissions=True)
+        frappe.db.commit()
+        return {
+            "success": True,
+            "message": agent
+        }
+    except Exception as e:
+        title = "Error creating agent"
+        frappe.log_error(frappe.get_traceback(), title)
+        return {
+            "success": False,
+            "message": "Failed to create agent",
+            "details": str(e),
+        }
 
 @frappe.whitelist()
 def get_price_lists():
@@ -1280,8 +1317,6 @@ def make_payment_for_transaction(doctype, docname, amount=None, payment_method=N
             "message": "Failed to process payment",
             "details": str(e),
         }
-
-
 
 
 @frappe.whitelist()

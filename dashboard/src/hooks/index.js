@@ -5,3 +5,4 @@ export {default as useCustomers} from './useCustomers';
 export {default as useMenuNavigation} from './useMenuNavigation';
 export {default as useFilteredMenuItems} from './useFilteredMenuItems';
 export {default as useTransactionTypes} from './useTransactionTypes';
+export {default as useAgents} from './useAgents';

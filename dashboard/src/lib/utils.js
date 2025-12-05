@@ -33,6 +33,14 @@ export async function logout(){
   }
 }
 
+/**
+ * Retries an async action multiple times before failing.
+ * @template T
+ * @param {() => Promise<T>} action
+ * @param {string} description
+ * @param {number} attempts
+ * @returns {Promise<T>}
+ */
 async function attemptWithRetries(action, description, attempts = MAX_ORDER_RETRY_ATTEMPTS) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt++) {
@@ -561,6 +569,33 @@ export async function createCustomer(customerName, mobileNo = null) {
   );
 }
 
+/**
+ * Create agent.
+ * @param {string} full_name - full name (required) 
+ * @param {string} certificate_no - certificate number (optional)
+ * @param {string} qualification -  qualification (optional)
+ */
+export async function createAgent(full_name, certificate_no = null, qualification = null) {
+	return attemptWithRetries(async () => {
+		const { message } = await call.post("havano_restaurant_pos.api.create_agent", {
+      full_name,
+      certificate_no,
+      qualification
+		});
+		return message;
+	}, "Create agent");
+}
+
+/**
+ * Get agents.
+ * @return {Array} List of agents
+ */
+export async function getAgents() {
+  return attemptWithRetries(async () => {
+    const { message } = await call.get("havano_restaurant_pos.api.get_agents");
+    return message;
+  }, "Get agents");
+}
 
 /**
  * Get a invoice data.
