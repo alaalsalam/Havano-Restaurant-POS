@@ -98,7 +98,6 @@ export function MenuProvider({ children }) {
       value={{
         menuItems,
         fetchMenuItems,
-        selectedCategory,
         selectedCategoryId,
         customer,
         transactionType,
