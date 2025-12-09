@@ -1,5 +1,6 @@
 import { useMenuContext } from "@/contexts/MenuContext";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
 
 const MenuCategories = () => {
   const {
@@ -29,7 +30,6 @@ const MenuCategories = () => {
             className={cn(
               "relative h-18 flex flex-col justify-between py-2 px-4 rounded-lg cursor-pointer text-white transition-all duration-150 overflow-hidden",
 
-              // ✅ Active (keyboard focus)
               target === "category" &&
                 index === currentIndex &&
                 "border-1 border-primary shadow-[0_0_40px_rgba(255,255,255,0.5)]"

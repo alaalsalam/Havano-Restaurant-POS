@@ -29,7 +29,7 @@ import UpdateCartDialog from "./UpdateCartDialog";
 import PaymentDialog from "./PaymentDialog";
 
 const Cart = () => {
-  const { target, currentIndex, setTarget } = useMenuContext();
+  const { target, currentIndex, setTarget, selectedAgent } = useMenuContext();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const fetchOrders = useOrderStore((state) => state.fetchOrders);
@@ -230,7 +230,8 @@ const Cart = () => {
         orderType || "Take Away", // order_type
         activeTableId || null, // table
         activeWaiterId || null, // waiter
-        customerName || selectedCustomer // customer_name
+        customerName || selectedCustomer, // customer_name
+        selectedAgent
       );
       
       if (invoiceResult && invoiceResult.success !== false && invoiceResult.name) {

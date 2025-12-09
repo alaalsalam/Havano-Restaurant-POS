@@ -16,6 +16,7 @@ const MenuContext = createContext(null);
 export function MenuProvider({ children }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [target, setTarget] = useState("menu");
+  const [selectedAgent, setSelectedAgent] = useState(null);
   const { menuItems, fetchMenuItems, menuCategories, fetchMenuCategories } = useMenuStore();
 
   const {
@@ -35,6 +36,7 @@ export function MenuProvider({ children }) {
     transactionType,
     setCustomer,
     setTransactionType,
+    addToCart,
   } = useCartStore();
 
   const categories = useSortedCategories(menuCategories);
@@ -130,6 +132,9 @@ export function MenuProvider({ children }) {
         orderType,
         activeWaiterId,
         customerName,
+        addToCart,
+        selectedAgent,
+        setSelectedAgent
       }}
     >
       {children}

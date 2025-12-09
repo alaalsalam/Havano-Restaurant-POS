@@ -261,6 +261,26 @@ export async function getDefaultCustomer() {
   }
 }
 
+export async function getItemPreparationRemarks(item) {
+	return attemptWithRetries(async () => {
+		const { message } = await call.get(
+			"havano_restaurant_pos.api.get_item_preparation_remarks",
+			{ item }
+		);
+		return message;
+	}, "Get item preparation remarks");
+}
+
+export async function saveItemPreparationRemark(item, remark) {
+	return attemptWithRetries(async () => {
+		const { message } = await call.post(
+			"havano_restaurant_pos.api.save_item_preparation_remark",
+			{ item, remark }
+		);
+		return message;
+	}, "Save item preparation remark");
+}
+
 export async function isRestaurantMode() {
   try {
     const { message } = await db.getSingleValue(
@@ -512,8 +532,8 @@ export async function convertQuotationToSalesInvoiceFromCart(quotationName, item
  * @param {string} waiter - Waiter ID for HA Order (optional)
  * @param {string} customerName - Customer display name for HA Order (optional)
  */
-export async function createTransaction(doctype, customer, items, company = null, orderType = null, table = null, waiter = null, customerName = null) {
-  console.log("Creating transaction:", { doctype, customer, items, company, orderType, table, waiter, customerName });
+export async function createTransaction(doctype, customer, items, company = null, orderType = null, table = null, waiter = null, customerName = null, agent = null) {
+  console.log("Creating transaction:", { doctype, customer, items, company, orderType, table, waiter, customerName, agent });
   return attemptWithRetries(
     async () => {
       const { message } = await call.post(
@@ -527,6 +547,7 @@ export async function createTransaction(doctype, customer, items, company = null
           table: table,
           waiter: waiter,
           customer_name: customerName,
+          agent
         }
       );
       return message;
@@ -632,6 +653,20 @@ export async function generate_quotation_json(quote_number) {
       return message;
     },
     "get invoice json"
+  );
+}
+
+export async function createProductBundle(new_item, price, items){
+  return attemptWithRetries(
+    async () => {
+      const {message} = await call.post("havano_restaurant_pos.api.create_product_bundle", {
+			new_item,
+			price,
+			items,
+		});
+      return message;
+    },
+    "Create product bundle"
   );
 }
 

@@ -16,12 +16,14 @@ import {
 import { Combobox } from "../ui/combobox";
 
 import NumPad from "./UpdateCartDialog";
+import { Button } from "../ui/button";
+
+import { CreateProductBundleDialog } from "../ui/CreateProductBundleDialog";
 
 const Menu = () => {
   const {
     fetchMenuItems,
     selectedCategory,
-    selectedCategoryId,
     customer,
     transactionType,
     setTransactionType,
@@ -33,35 +35,39 @@ const Menu = () => {
     fetchCustomers,
     availableTransactionTypes,
     filteredItems,
-    currentIndex,
-    setCurrentIndex
+    addToCart,
+    selectedAgent,
+    setSelectedAgent
   } = useMenuContext();
 
   const {
-		// data
 		agents,
-		setAgents,
-
-		// fetch state
 		isFetchingAgents,
-		fetchAgentsError,
-
-		// create state
-		isCreatingAgent,
-		createAgentError,
-
-		// actions
 		fetchAgents,
-		makeAgent,
 	} = useAgents();
 
-  const [selectedAgent, setSelectedAgent] = useState(null);
+  const [openMixDialog, setOpenMixDialog] = useState(false);
+  
 
 
   useEffect(() => {
     fetchMenuItems();
   }, [fetchMenuItems]);
 
+  useEffect(() => {
+    const handleF1Click = (event) => {
+      if (event.key === "F1") {
+        event.preventDefault();
+        setOpenMixDialog(true);
+      }
+    };
+    window.addEventListener("keydown", handleF1Click);
+    return () => {
+      window.removeEventListener("keydown", handleF1Click);
+    }
+  })
+
+  
   return (
     <>
       <NumPad isOpen={false} setIsOpen={() => {}} />
@@ -69,6 +75,15 @@ const Menu = () => {
         <p className="text-2xl my-4">{selectedCategory?.name || "Menu"}</p>
 
         <div className="flex items-center gap-2 flex-1 justify-end">
+          
+          
+          <Button
+           variant={"outline"}
+           onClick={() => setOpenMixDialog(true)}
+           className="w-[100px] font-extrabold"
+          >
+            Mix
+          </Button>
           <Select
             value={transactionType}
             onValueChange={setTransactionType}
@@ -85,7 +100,6 @@ const Menu = () => {
               ))}
             </SelectContent>
           </Select>
-
           <Combobox
             type="agent"
             options={agents.map((agent) => ({
@@ -104,10 +118,9 @@ const Menu = () => {
             onCreate
             onCreated={(newAgent) => {
               fetchAgents();
-              setSelectedAgent(newAgent.value || newAgent.full_name);
+              setSelectedAgent(newAgent.value);
             }}
           />
-
           <Combobox
             type="customer"
             options={customers.map((cust) => ({
@@ -128,12 +141,11 @@ const Menu = () => {
               setCustomer(newCustomer.value);
             }}
           />
-
-          <div className="flex items-center w-1/3 bg-background px-2 py-1 rounded-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary">
+          <div className="flex items-center bg-background px-2 py-1 rounded-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary">
             <input
               type="text"
               placeholder="Search"
-              className="w-full focus:outline-none focus:ring-0 focus:border-transparent"
+              className="w-[200px] focus:outline-none focus:ring-0 focus:border-transparent"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -147,6 +159,15 @@ const Menu = () => {
           <MenuItemCard key={item.name} item={item} index={index} />
         ))}
       </div>
+
+      <CreateProductBundleDialog
+        open={openMixDialog}
+        onOpenChange={setOpenMixDialog}
+        onCreated={(item) => {
+          addToCart(item);
+          setOpenMixDialog(false);
+        }}
+      />
     </>
   );
 };

@@ -4,15 +4,10 @@ import { useCartStore } from "@/stores/useCartStore";
 
 import { useMenuContext } from "@/contexts/MenuContext";
 
-import { Card, CardHeader, CardTitle } from "../ui/card";
+import { Card, CardHeader, CardTitle, CardFooter } from "../ui/card";
 
 const MenuItemCard = ({ item, index }) => {
-  const {
-    currentIndex,
-    setCurrentIndex,
-    target,
-    setTarget
-  } = useMenuContext();
+  const { currentIndex, setCurrentIndex, target, setTarget } = useMenuContext();
 
   const addToCart = useCartStore((state) => state.addToCart);
   const isActive = currentIndex === index && target === "menu";
@@ -32,24 +27,24 @@ const MenuItemCard = ({ item, index }) => {
   const handleSelectItem = () => {
     setCurrentIndex(index);
     setTarget("menu");
-  }
+  };
   return (
     <>
       <Card
         data-index={index}
         onClick={() => {
-          handleSelectItem() ;
+          handleSelectItem();
           handleAddToCart();
         }}
-        className={
-          cn(
-            "menu-item cursor-pointer rounded-lg border shadow-sm transition transform hover:shadow-md hover:scale-[1.02] active:scale-[0.98] active:bg-gray-50", isActive && "border-primary bg-primary/10"
-          )
-        }
+        className={cn(
+          "menu-item cursor-pointer rounded-lg border shadow-sm transition transform hover:shadow-md hover:scale-[1.02] active:scale-[0.98] active:bg-gray-50",
+          isActive && "border-primary bg-primary/10"
+        )}
       >
         <CardHeader className="flex items-center justify-between">
-          <CardTitle>{item.item_name}</CardTitle>
-          <i>{formatCurrency(item.standard_rate)}</i>
+          <CardTitle className="truncate max-w-[140px]">
+            {item.item_name}
+          </CardTitle>
         </CardHeader>
       </Card>
     </>
