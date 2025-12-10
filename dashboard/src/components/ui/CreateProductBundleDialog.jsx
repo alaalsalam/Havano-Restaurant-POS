@@ -16,6 +16,7 @@ import { useCreateProductBundle } from "@/hooks";
 import { useMenuStore } from "@/stores/useMenuStore";
 import { toast } from "sonner";
 import { MultiSelectWithQuantity } from "./MultiSelectWithQuantity";
+import SelectableQuantityTable from "@/components/MenuPage/SelectTable";
 
 export function CreateProductBundleDialog({ open, onOpenChange, onCreated}) {
   const [loading, setLoading] = useState(false);
@@ -177,6 +178,7 @@ export function CreateProductBundleDialog({ open, onOpenChange, onCreated}) {
                 dropdownWidth="max-w-[500px]"
               />
             </div>
+            <SelectableQuantityTable/>
           </div>
           <DialogFooter>
             <Button

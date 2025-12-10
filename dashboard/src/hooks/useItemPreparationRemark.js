@@ -3,6 +3,7 @@ import { getItemPreparationRemarks } from "@/lib/utils";
 
 export default function useItemPreparationRemark(item) {
   const [remarks, setRemarks] = useState([]);
+  const [prepRemarks, setPrepRemarks] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -25,14 +26,17 @@ export default function useItemPreparationRemark(item) {
 
         if (res?.success) {
           setRemarks(res.remarks || []);
+          setPrepRemarks(res.prep_remarks || []);
         } else {
           setRemarks([]);
+          setPrepRemarks([]);
         }
       } catch (err) {
         if (!isMounted) return;
         console.error("Failed to load preparation remarks:", err);
         setError(err);
         setRemarks([]);
+        setPrepRemarks([]);
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -49,7 +53,9 @@ export default function useItemPreparationRemark(item) {
 
   return {
     remarks,
+    prepRemarks,
     isLoading,
     error,
+    setRemarks,
   };
 }

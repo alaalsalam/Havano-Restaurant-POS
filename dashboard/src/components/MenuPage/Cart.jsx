@@ -365,7 +365,7 @@ const Cart = () => {
                    >
                      <div className="flex gap-4 font-bold">
                        <p>x{item.quantity}</p>
-                       <p>{item.item_name || item.name}</p>
+                       <p className="max-w-30 truncate">{item.item_name || item.name}</p>
                        <i>
                          {formatCurrency(item.price ?? item.standard_rate ?? 0)}
                        </i>

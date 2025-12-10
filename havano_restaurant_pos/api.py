@@ -1628,6 +1628,8 @@ def get_item_preparation_remarks(item):
             }
 
         item_doc = frappe.get_doc("Item", item)
+        
+        prep_remarks = frappe.get_all("Preparation Remark", pluck="remark")
 
         remarks = [
             row.remark
@@ -1637,7 +1639,8 @@ def get_item_preparation_remarks(item):
 
         return {
             "success": True,
-            "remarks": remarks
+            "remarks": remarks,
+            "prep_remarks": prep_remarks
         }
 
     except Exception as e:

@@ -14,7 +14,6 @@ import { useCartStore } from "@/stores/useCartStore";
 import Keyboard from "../ui/Keyboard";
 import OnScreenKeyboard from "../ui/OnScreenKeyboard";
 import { useItemPreparationRemark } from "@/hooks";
-import { saveItemPreparationRemark } from "@/lib/utils";
 
 import { useState } from "react";
 const UpdateCartDialog = () => {
@@ -23,7 +22,7 @@ const UpdateCartDialog = () => {
   const isOpen = useCartStore((state) => state.isUpdateDialogOpen);
   const closeUpdateDialog = useCartStore((state) => state.closeUpdateDialog);
 
-  const { remarks: remarkOptions, isLoading: remarksLoading } = useItemPreparationRemark(selectedItem?.name);
+  const { prepRemarks: prepRemarkOptions, remarks: remarkOptions, setRemarks, isLoading: remarksLoading } = useItemPreparationRemark(selectedItem?.name);
 
   const [showRemarkSuggestions, setShowRemarkSuggestions] = useState(false);
 
@@ -50,12 +49,12 @@ const UpdateCartDialog = () => {
   const quantityValue = watch("quantity");
   const remarkValue = watch("remark");
 
-  // Populate form when item changes
+
   useEffect(() => {
     if (selectedItem) {
       reset({
         price: selectedItem.price ?? "",
-        quantity: "", // Always start with empty quantity so users can type their desired value
+        quantity: "",
         remark: selectedItem.remark ?? "",
       });
     } else {
@@ -71,7 +70,6 @@ const UpdateCartDialog = () => {
       quantity: Number(quantity),
       remark,
     });
-    saveItemPreparationRemark(selectedItem.name, remark);
     setShowRemarkKeyboard(false);
     setShowQuantityKeyboard(true);
     closeUpdateDialog();
@@ -228,7 +226,7 @@ const UpdateCartDialog = () => {
                           }}
                           placeholder="Add a preparation remark..."
                           rows={4}
-                          className="w-full"
+                          className="max-w-120 min-h-20"
                         />
 
                         {showRemarkSuggestions && remarkOptions.length > 0 && (
@@ -258,18 +256,30 @@ const UpdateCartDialog = () => {
                         )}
                       </div>
 
-                      <Button
-                        type="button"
-                        variant={showRemarkKeyboard ? "default" : "outline"}
-                        onClick={() => {
-                          const newState = !showRemarkKeyboard;
-                          setShowRemarkKeyboard(newState);
-                          setShowQuantityKeyboard(!newState);
-                        }}
-                        className="whitespace-nowrap"
-                      >
-                        {showRemarkKeyboard ? "Hide Keyboard" : "Show Keyboard"}
-                      </Button>
+                      <div className="flex flex-col gap-3">
+                        <Button
+                          type="button"
+                          variant={showRemarkKeyboard ? "default" : "outline"}
+                          onClick={() => {
+                            const newState = !showRemarkKeyboard;
+                            setShowRemarkKeyboard(newState);
+                            setShowQuantityKeyboard(!newState);
+                          }}
+                          className="whitespace-nowrap"
+                        >
+                          {showRemarkKeyboard ? "Hide Keyboard" : "Show Keyboard"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setRemarks((prev) => [...prev, ...prepRemarkOptions]);
+                          }}
+                          className="whitespace-nowrap"
+                        >
+                          Add Global Remarks
+                        </Button>
+                      </div>
                     </div>
                     {showRemarkKeyboard && (
                       <div className="mt-2 bg-gray-50 p-4 rounded-lg">
