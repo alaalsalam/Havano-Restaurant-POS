@@ -1,7 +1,7 @@
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge"
 
-import { auth,call, db } from "./frappeClient";
+import { auth, call, db } from "./frappeClient";
 
 export function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -33,6 +33,14 @@ export async function logout(){
   }
 }
 
+/**
+ * Retries an async action multiple times before failing.
+ * @template T
+ * @param {() => Promise<T>} action
+ * @param {string} description
+ * @param {number} attempts
+ * @returns {Promise<T>}
+ */
 async function attemptWithRetries(action, description, attempts = MAX_ORDER_RETRY_ATTEMPTS) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt++) {
@@ -251,6 +259,40 @@ export async function getDefaultCustomer() {
     console.error("Error fetching default customer:", err);
     return null;
   }
+}
+
+export async function getItemPreparationRemarks(item) {
+	return attemptWithRetries(async () => {
+		const { message } = await call.get(
+			"havano_restaurant_pos.api.get_item_preparation_remarks",
+			{ item }
+		);
+		return message;
+	}, "Get item preparation remarks");
+}
+
+export async function saveItemPreparationRemark(item, remark) {
+	return attemptWithRetries(async () => {
+		const { message } = await call.post(
+			"havano_restaurant_pos.api.save_item_preparation_remark",
+			{ item, remark }
+		);
+		return message;
+	}, "Save item preparation remark");
+}
+
+export async function isRestaurantMode() {
+  try {
+    const { message } = await db.getSingleValue(
+      "Sample POS Settings",
+      "restaurant_mode"
+    );
+    return message || false;
+  } catch (err) {
+    console.error("Error fetching Sample POS Settings.is_restaurant_mode:", err);
+    return false;
+  }
+  
 }
 
 /**
@@ -490,8 +532,8 @@ export async function convertQuotationToSalesInvoiceFromCart(quotationName, item
  * @param {string} waiter - Waiter ID for HA Order (optional)
  * @param {string} customerName - Customer display name for HA Order (optional)
  */
-export async function createTransaction(doctype, customer, items, company = null, orderType = null, table = null, waiter = null, customerName = null) {
-  console.log("Creating transaction:", { doctype, customer, items, company, orderType, table, waiter, customerName });
+export async function createTransaction(doctype, customer, items, company = null, orderType = null, table = null, waiter = null, customerName = null, agent = null) {
+  console.log("Creating transaction:", { doctype, customer, items, company, orderType, table, waiter, customerName, agent });
   return attemptWithRetries(
     async () => {
       const { message } = await call.post(
@@ -505,6 +547,7 @@ export async function createTransaction(doctype, customer, items, company = null
           table: table,
           waiter: waiter,
           customer_name: customerName,
+          agent
         }
       );
       return message;
@@ -547,6 +590,33 @@ export async function createCustomer(customerName, mobileNo = null) {
   );
 }
 
+/**
+ * Create agent.
+ * @param {string} full_name - full name (required) 
+ * @param {string} certificate_no - certificate number (optional)
+ * @param {string} qualification -  qualification (optional)
+ */
+export async function createAgent(full_name, certificate_no = null, qualification = null) {
+	return attemptWithRetries(async () => {
+		const { message } = await call.post("havano_restaurant_pos.api.create_agent", {
+      full_name,
+      certificate_no,
+      qualification
+		});
+		return message;
+	}, "Create agent");
+}
+
+/**
+ * Get agents.
+ * @return {Array} List of agents
+ */
+export async function getAgents() {
+  return attemptWithRetries(async () => {
+    const { message } = await call.get("havano_restaurant_pos.api.get_agents");
+    return message;
+  }, "Get agents");
+}
 
 /**
  * Get a invoice data.
@@ -584,4 +654,34 @@ export async function generate_quotation_json(quote_number) {
     },
     "get invoice json"
   );
+}
+
+export async function createProductBundle(new_item, price, items){
+  return attemptWithRetries(
+    async () => {
+      const {message} = await call.post("havano_restaurant_pos.api.create_product_bundle", {
+			new_item,
+			price,
+			items,
+		});
+      return message;
+    },
+    "Create product bundle"
+  );
+}
+
+export function transformCartToItems(cart = []) {
+	return cart.map((item) => ({
+		item_code: item.name || item.item_name,
+		qty: item.quantity || 1,
+		rate: item.price ?? item.standard_rate ?? 0,
+	}));
+}
+
+export function calculateCartTotal(cart = []) {
+	return cart.reduce((total, item) => {
+		const price = item.price ?? item.standard_rate ?? 0;
+		const quantity = item.quantity ?? 1;
+		return total + price * quantity;
+	}, 0);
 }

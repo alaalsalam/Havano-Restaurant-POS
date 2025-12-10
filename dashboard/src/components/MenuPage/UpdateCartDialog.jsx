@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCartStore } from "@/stores/useCartStore";
 import Keyboard from "../ui/Keyboard";
 import OnScreenKeyboard from "../ui/OnScreenKeyboard";
+import { useItemPreparationRemark } from "@/hooks";
 
 import { useState } from "react";
 const UpdateCartDialog = () => {
@@ -20,6 +21,11 @@ const UpdateCartDialog = () => {
   const selectedItem = useCartStore((state) => state.selectedCartItem);
   const isOpen = useCartStore((state) => state.isUpdateDialogOpen);
   const closeUpdateDialog = useCartStore((state) => state.closeUpdateDialog);
+
+  const { prepRemarks: prepRemarkOptions, remarks: remarkOptions, setRemarks, isLoading: remarksLoading } = useItemPreparationRemark(selectedItem?.name);
+
+  const [showRemarkSuggestions, setShowRemarkSuggestions] = useState(false);
+
 
   const [showRemarkKeyboard, setShowRemarkKeyboard] = useState(false);
   const [showQuantityKeyboard, setShowQuantityKeyboard] = useState(true);
@@ -43,12 +49,12 @@ const UpdateCartDialog = () => {
   const quantityValue = watch("quantity");
   const remarkValue = watch("remark");
 
-  // Populate form when item changes
+
   useEffect(() => {
     if (selectedItem) {
       reset({
         price: selectedItem.price ?? "",
-        quantity: "", // Always start with empty quantity so users can type their desired value
+        quantity: "",
         remark: selectedItem.remark ?? "",
       });
     } else {
@@ -68,6 +74,20 @@ const UpdateCartDialog = () => {
     setShowQuantityKeyboard(true);
     closeUpdateDialog();
   });
+  
+  useEffect(() => {
+    function handleEnter(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (!quantityValue) return;
+        handleConfirm();
+      }
+    }
+    document.addEventListener("keydown", handleEnter);
+    return () => {
+      document.removeEventListener("keydown", handleEnter);
+    };
+  })
 
   return (
     <>
@@ -139,119 +159,186 @@ const UpdateCartDialog = () => {
           }
         }}
       >
-        <DialogContent 
-          className="p-4 rounded-xl bg-white shadow-lg w-full max-w-7xl update-cart-dialog-content"
-        >
-        <div className="flex flex-col h-full">
-          <DialogHeader className="mb-3 flex-shrink-0">
-            {selectedItem?.name && (
-              <DialogTitle className="text-lg font-semibold">
-                {selectedItem.item_name || selectedItem.name}
-              </DialogTitle>
-            )}
-          </DialogHeader>
-          <div className="flex flex-col sm:flex-row gap-4 flex-1 min-h-0">
-            {/* Left side - Form fields */}
-            <div className="flex-1 bg-gray-50 p-4 rounded-lg min-w-0">
-              <form onSubmit={handleConfirm} className="space-y-4">
-                {/* Price */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Price</label>
-                  <Input disabled type="number" step="0.01" min="0" {...register("price")} className="w-full" />
-                </div>
-                {/* Quantity */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Quantity</label>
-                  <Input 
-                    type="number" 
-                    min="1" 
-                    {...register("quantity")}
-                    className="w-full"
-                    onFocus={() => {
-                      setShowRemarkKeyboard(false);
-                      setShowQuantityKeyboard(true);
-                    }}
-                  />
-                </div>
-                {/* Preparation Remark */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Preparation Remark</label>
-                  <div className="flex gap-2 mb-2">
-                    <Textarea
-                      {...register("remark")}
-                      value={remarkValue || ""}
-                      onChange={(e) => setValue("remark", e.target.value)}
-                      placeholder="Add a preparation remark..."
-                      rows={4}
-                      className="w-full flex-1"
+        <DialogContent className="p-4 rounded-xl bg-white shadow-lg w-full max-w-7xl update-cart-dialog-content">
+          <div className="flex flex-col h-full">
+            <DialogHeader className="mb-3 flex-shrink-0">
+              {selectedItem?.name && (
+                <DialogTitle className="text-lg font-semibold">
+                  {selectedItem.item_name || selectedItem.name}
+                </DialogTitle>
+              )}
+            </DialogHeader>
+            <div className="flex flex-col sm:flex-row gap-4 flex-1 min-h-0">
+              {/* Left side - Form fields */}
+              <div className="flex-1 bg-gray-50 p-4 rounded-lg min-w-0">
+                <form onSubmit={handleConfirm} className="space-y-4">
+                  {/* Price */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Price
+                    </label>
+                    <Input
+                      disabled
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      {...register("price")}
+                      className="w-full"
                     />
+                  </div>
+                  {/* Quantity */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Quantity
+                    </label>
+                    <Input
+                      type="number"
+                      min="1"
+                      {...register("quantity")}
+                      className="w-full"
+                      onFocus={() => {
+                        setShowRemarkKeyboard(false);
+                        setShowQuantityKeyboard(true);
+                      }}
+                    />
+                  </div>
+                  {/* Preparation Remark */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Preparation Remark
+                    </label>
+                    <div className="flex gap-2 mb-2">
+                      <div className="relative w-full">
+                        <Textarea
+                          {...register("remark")}
+                          value={remarkValue || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setValue("remark", val);
+                            setShowRemarkSuggestions(true);
+                          }}
+                          onFocus={() => setShowRemarkSuggestions(true)}
+                          onBlur={() => {
+                            setTimeout(
+                              () => setShowRemarkSuggestions(false),
+                              150
+                            );
+                          }}
+                          placeholder="Add a preparation remark..."
+                          rows={4}
+                          className="max-w-120 min-h-20"
+                        />
+
+                        {showRemarkSuggestions && remarkOptions.length > 0 && (
+                          <div className="absolute z-50 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                            {remarkOptions
+                              .filter((item) =>
+                                item
+                                  .toLowerCase()
+                                  .includes((remarkValue || "").toLowerCase())
+                              )
+                              .map((item) => (
+                                <button
+                                  key={item}
+                                  type="button"
+                                  onMouseDown={() => {
+                                    setValue("remark", item, {
+                                      shouldDirty: true,
+                                    });
+                                    setShowRemarkSuggestions(false);
+                                  }}
+                                  className="block w-full text-left px-3 py-2 hover:bg-gray-100"
+                                >
+                                  {item}
+                                </button>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <Button
+                          type="button"
+                          variant={showRemarkKeyboard ? "default" : "outline"}
+                          onClick={() => {
+                            const newState = !showRemarkKeyboard;
+                            setShowRemarkKeyboard(newState);
+                            setShowQuantityKeyboard(!newState);
+                          }}
+                          className="whitespace-nowrap"
+                        >
+                          {showRemarkKeyboard ? "Hide Keyboard" : "Show Keyboard"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setRemarks((prev) => [...prev, ...prepRemarkOptions]);
+                          }}
+                          className="whitespace-nowrap"
+                        >
+                          Add Global Remarks
+                        </Button>
+                      </div>
+                    </div>
+                    {showRemarkKeyboard && (
+                      <div className="mt-2 bg-gray-50 p-4 rounded-lg">
+                        <OnScreenKeyboard
+                          value={remarkValue || ""}
+                          setValue={(val) => setValue("remark", val)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-2">
                     <Button
                       type="button"
-                      variant={showRemarkKeyboard ? "default" : "outline"}
+                      variant="outline"
                       onClick={() => {
-                        const newState = !showRemarkKeyboard;
-                        setShowRemarkKeyboard(newState);
-                        setShowQuantityKeyboard(!newState);
+                        setShowRemarkKeyboard(false);
+                        setShowQuantityKeyboard(true);
+                        closeUpdateDialog();
+                        reset();
                       }}
-                      className="whitespace-nowrap"
+                      className="flex-1"
                     >
-                      {showRemarkKeyboard ? "Hide Keyboard" : "Show Keyboard"}
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1"
+                    >
+                      OK
                     </Button>
                   </div>
-                  {showRemarkKeyboard && (
-                    <div className="mt-2 bg-gray-50 p-4 rounded-lg">
-                      <OnScreenKeyboard
-                        value={remarkValue || ""}
-                        setValue={val => setValue("remark", val)}
-                      />
-                    </div>
-                  )}
-                </div>
-                {/* Actions */}
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setShowRemarkKeyboard(false);
-                      setShowQuantityKeyboard(true);
-                      closeUpdateDialog();
-                      reset();
-                    }}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSubmitting} className="flex-1">
-                    OK
-                  </Button>
-                </div>
-              </form>
-            </div>
-            
-            {/* Right side - Keyboards */}
-            {showQuantityKeyboard && (
-              <div className="w-full sm:w-[32rem] update-cart-keyboard-container flex-shrink-0">
-                <div className="bg-gray-50 p-4 rounded-lg update-cart-keyboard-box">
-                  <Keyboard
-                    value={String(quantityValue || "")}
-                    setValue={val => {
-                      const numVal = val === "" ? "" : String(val);
-                      setValue("quantity", numVal, { shouldValidate: true });
-                    }}
-                    min={1}
-                    max={999}
-                    presets={[]}
-                    className="w-full"
-                    buttonClass="text-2xl py-5"
-                  />
-                </div>
+                </form>
               </div>
-            )}
+
+              {/* Right side - Keyboards */}
+              {showQuantityKeyboard && (
+                <div className="w-full sm:w-[32rem] update-cart-keyboard-container flex-shrink-0">
+                  <div className="bg-gray-50 p-4 rounded-lg update-cart-keyboard-box">
+                    <Keyboard
+                      value={String(quantityValue || "")}
+                      setValue={(val) => {
+                        const numVal = val === "" ? "" : String(val);
+                        setValue("quantity", numVal, { shouldValidate: true });
+                      }}
+                      min={1}
+                      max={999}
+                      presets={[]}
+                      className="w-full"
+                      buttonClass="text-2xl py-5"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

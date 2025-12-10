@@ -2,15 +2,13 @@ import * as React from "react";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "./popover";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { Input } from "./input";
 import { CreateCustomerDialog } from "./CreateCustomerDialog";
+import { CreateAgentDialog } from "./CreateAgentDialog";
 
 export function Combobox({
+  type,
   options = [],
   value,
   onValueChange,
@@ -18,8 +16,9 @@ export function Combobox({
   searchPlaceholder = "Search...",
   disabled = false,
   className,
-  onCreateCustomer,
-  onCustomerCreated,
+  onCreate,
+  onCreated,
+  emptyText = "No results found",
 }) {
   const [open, setOpen] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -32,20 +31,20 @@ export function Combobox({
       const label = option.label || option.name || option.customer_name || "";
       const value = option.value || option.name || "";
       return (
-        label.toLowerCase().includes(term) ||
-        value.toLowerCase().includes(term)
+        label.toLowerCase().includes(term) || value.toLowerCase().includes(term)
       );
     });
   }, [options, searchTerm]);
 
   const selectedOption = React.useMemo(() => {
-    return options.find(
-      (opt) => (opt.value || opt.name) === value
-    );
+    return options.find((opt) => (opt.value || opt.name) === value);
   }, [options, value]);
 
   const displayValue = selectedOption
-    ? selectedOption.label || selectedOption.customer_name || selectedOption.name || value
+    ? selectedOption.label ||
+      selectedOption.customer_name ||
+      selectedOption.name ||
+      value
     : placeholder;
 
   React.useEffect(() => {
@@ -53,6 +52,48 @@ export function Combobox({
       setSearchTerm("");
     }
   }, [open]);
+
+   let createDialogContent = null;
+
+  if (onCreate) {
+    if (type === "customer") {
+      createDialogContent = (
+        <CreateCustomerDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          initialCustomerName={searchTerm}
+          onCreated={(newCustomer) => {
+            if (onCreated) {
+              onCreated(newCustomer);
+            }
+            if (onValueChange) {
+              onValueChange(newCustomer.value);
+            }
+            setOpen(false);
+            setSearchTerm("");
+          }}
+        />
+      );
+    } else if (type === "agent") {
+      createDialogContent = (
+        <CreateAgentDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          initialAgentName={searchTerm}
+          onCreated={(newCustomer) => {
+            if (onCreated) {
+              onCreated(newCustomer);
+            }
+            if (onValueChange) {
+              onValueChange(newCustomer.value);
+            }
+            setOpen(false);
+            setSearchTerm("");
+          }}
+        />
+      );
+    }
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -68,7 +109,10 @@ export function Combobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        align="start"
+      >
         <div className="p-2">
           <Input
             placeholder={searchPlaceholder}
@@ -86,9 +130,9 @@ export function Combobox({
           {filteredOptions.length === 0 ? (
             <div className="px-4 py-6 text-center">
               <p className="text-sm text-muted-foreground mb-3">
-                No customers found.
+                {emptyText}
               </p>
-              {onCreateCustomer && searchTerm && (
+              {onCreate && searchTerm && (
                 <Button
                   type="button"
                   variant="outline"
@@ -108,7 +152,8 @@ export function Combobox({
             <div className="p-1">
               {filteredOptions.map((option) => {
                 const optionValue = option.value || option.name;
-                const optionLabel = option.label || option.customer_name || option.name;
+                const optionLabel =
+                  option.label || option.customer_name || option.name;
                 const isSelected = value === optionValue;
                 return (
                   <div
@@ -137,24 +182,7 @@ export function Combobox({
           )}
         </div>
       </PopoverContent>
-      {onCreateCustomer && (
-        <CreateCustomerDialog
-          open={createDialogOpen}
-          onOpenChange={setCreateDialogOpen}
-          initialCustomerName={searchTerm}
-          onCustomerCreated={(newCustomer) => {
-            if (onCustomerCreated) {
-              onCustomerCreated(newCustomer);
-            }
-            if (onValueChange) {
-              onValueChange(newCustomer.value);
-            }
-            setOpen(false);
-            setSearchTerm("");
-          }}
-        />
-      )}
+      {createDialogContent}
     </Popover>
   );
 }
-

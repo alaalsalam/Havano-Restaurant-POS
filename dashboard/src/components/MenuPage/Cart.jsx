@@ -1,9 +1,18 @@
 import { Edit, ShoppingCart, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast,Toaster } from "sonner";
+import { cn } from "@/lib/utils";
 
-import { formatCurrency, handleCreateOrder, handleUpdateOrder, createTransaction, getDefaultCustomer, convertQuotationToSalesInvoiceFromCart } from "@/lib/utils";
+import { useMenuContext } from "@/contexts/MenuContext";
+
+import { 
+  formatCurrency,
+  createTransaction, 
+  getDefaultCustomer, 
+  convertQuotationToSalesInvoiceFromCart,
+  generate_quotation_json
+} from "@/lib/utils";
 import { useCartStore } from "@/stores/useCartStore";
 import { useOrderStore } from "@/stores/useOrderStore";
 
@@ -18,9 +27,9 @@ import {
 } from "../ui/card";
 import UpdateCartDialog from "./UpdateCartDialog";
 import PaymentDialog from "./PaymentDialog";
-import { generate_quotation_json } from "@/lib/utils";
 
 const Cart = () => {
+  const { target, currentIndex, setTarget, selectedAgent } = useMenuContext();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const fetchOrders = useOrderStore((state) => state.fetchOrders);
@@ -40,8 +49,21 @@ const Cart = () => {
     clearCart,
   } = useCartStore();
 
+  useEffect(() => {
+    const handleKeyBoardSubmitOrder = (event) => {
+      if (event.key === "F10") {
+        event.preventDefault();
+        handleSubmitOrder(cart);
+      }
+    }
+    window.addEventListener("keydown", handleKeyBoardSubmitOrder);
+    return () => {
+      window.removeEventListener("keydown", handleKeyBoardSubmitOrder);
+    }
+  })
 
-  const handleSubmitOrder = async (cart) => {
+
+ async function handleSubmitOrder(cart) {
     console.log("🔵 handleSubmitOrder called");
     console.log("  orderTypes:", orderType);
     console.log("  transactionType:", transactionType);
@@ -175,10 +197,10 @@ const Cart = () => {
       return;
     }
 
-    // For Sales Invoice, create Sales Invoice first, then open payment dialog
+    
     setIsSubmitting(true);
     try {
-      // Get customer - use selected customer or default from settings
+      
       let selectedCustomer = customer;
       if (!selectedCustomer) {
         selectedCustomer = await getDefaultCustomer();
@@ -192,14 +214,14 @@ const Cart = () => {
         }
       }
 
-      // Convert cart items to the format expected by createTransaction
+      
       const items = cart.map((item) => ({
         item_code: item.name || item.item_name,
         qty: item.quantity || 1,
         rate: item.price || item.standard_rate || 0,
       }));
 
-      // Create Sales Invoice first (this will also create HA Order)
+      // Create Sales Invoice first
       const invoiceResult = await createTransaction(
         "Sales Invoice", 
         selectedCustomer, 
@@ -208,11 +230,12 @@ const Cart = () => {
         orderType || "Take Away", // order_type
         activeTableId || null, // table
         activeWaiterId || null, // waiter
-        customerName || selectedCustomer // customer_name
+        customerName || selectedCustomer, // customer_name
+        selectedAgent
       );
       
       if (invoiceResult && invoiceResult.success !== false && invoiceResult.name) {
-        // Sales Invoice created successfully, now open payment dialog
+        
         setPaymentState({
           open: true,
           orderId: null,
@@ -248,6 +271,14 @@ const Cart = () => {
     transactionDoctype: null,
     transactionName: null,
   });
+
+  useEffect(() => {
+    if (paymentState.open) {
+      setTarget("payment");
+    }else{
+      setTarget("menu");
+    }
+  }, [paymentState.open]);
 
   const handlePaymentPaid = async (invoiceResp) => {
     // After payment / invoice created, clear cart and refresh orders
@@ -318,54 +349,49 @@ const Cart = () => {
               </p>
             )}
           </div>
-          {cart.length > 0 ? (
-            <div className="flex flex-col space-y-1">
-              {cart.map((item) => (
-                <div
-                  key={item.name}
-                  className="flex justify-between items-center bg-secondary-background py-2 px-4 rounded-sm"
-                >
-                  <div className="flex gap-4 font-bold">
-                    <p>x{item.quantity}</p>
-                    <p>{item.item_name || item.name}</p>
-                    <i>
-                      {formatCurrency(item.price ?? item.standard_rate ?? 0)}
-                    </i>
-                  </div>
-                  <div className="flex items-center">
-                    <div
-                      className="cursor-pointer hover:bg-background p-2 rounded-sm group"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFromCart(item);
-                      }}
-                    >
-                      <Trash2
-                        size={20}
-                        className="text-red-700 group-hover:text-red-400"
-                      />
-                    </div>
-                    <div
-                      className="cursor-pointer hover:bg-background p-2 rounded-sm group"
-                      onClick={() => openUpdateDialog(item)}
-                    >
-                      <Edit
-                        size={20}
-                        className="text-yellow-700 group-hover:text-yellow-400"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="h-full flex items-center justify-center">
-              <div className="flex flex-col justify-center items-center gap-2">
-                <ShoppingCart size={60} className="text-secondary" />
-                <i>Cart is empty</i>
-              </div>
-            </div>
-          )}
+         {
+           cart.length ? (
+             <div className="space-y-1">
+               {cart.map((item, index) => {
+                 const isActive = currentIndex === index && target === "cart";
+
+                 return (
+                   <div
+                     key={item.name}
+                     className={cn(
+                       "flex justify-between bg-secondary-background p-2 rounded",
+                       isActive && "border-2 border-primary bg-primary/10"
+                     )}
+                   >
+                     <div className="flex gap-4 font-bold">
+                       <p>x{item.quantity}</p>
+                       <p className="max-w-30 truncate">{item.item_name || item.name}</p>
+                       <i>
+                         {formatCurrency(item.price ?? item.standard_rate ?? 0)}
+                       </i>
+                     </div>
+
+                     <div className="flex">
+                       <Trash2
+                         onClick={() => removeFromCart(item)}
+                         className="cursor-pointer text-red-600"
+                       />
+                       <Edit
+                         onClick={() => openUpdateDialog(item)}
+                         className="cursor-pointer text-yellow-600 ml-2"
+                       />
+                     </div>
+                   </div>
+                 );
+               })}
+             </div>
+           ) : (
+             <div className="h-full flex flex-col items-center justify-center gap-2">
+               <ShoppingCart size={60} className="text-secondary" />
+               <i>Cart is empty</i>
+             </div>
+           )
+         }
         </CardContent>
         <hr className="border border-gray-600" />
         <CardFooter>
@@ -402,3 +428,4 @@ const Cart = () => {
 };
 
 export default Cart;
+ 

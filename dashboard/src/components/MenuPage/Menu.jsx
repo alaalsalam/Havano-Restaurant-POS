@@ -1,10 +1,11 @@
 import { Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import MenuItemCard from "@/components/MenuPage/MenuItemCard";
-import { useCartStore } from "@/stores/useCartStore";
-import { useMenuStore } from "@/stores/useMenuStore";
-import { getCustomers, getUserTransactionTypes } from "@/lib/utils";
+import { useMenuContext } from "@/contexts/MenuContext";
+
+import { useAgents } from "@/hooks";
+
 import {
   Select,
   SelectContent,
@@ -13,87 +14,86 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Combobox } from "../ui/combobox";
-import { toast } from "sonner";
 
 import NumPad from "./UpdateCartDialog";
+import { Button } from "../ui/button";
+
+import { CreateProductBundleDialog } from "../ui/CreateProductBundleDialog";
+import { set } from "date-fns";
 
 const Menu = () => {
-  const { menuItems, fetchMenuItems } = useMenuStore();
-  const selectedCategory = useCartStore((state) => state.selectedCategory);
-  const selectedCategoryId = selectedCategory?.id;
-  const { customer, transactionType, setCustomer, setTransactionType } = useCartStore();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [customers, setCustomers] = useState([]);
-  const [loadingCustomers, setLoadingCustomers] = useState(true);
-  const [availableTransactionTypes, setAvailableTransactionTypes] = useState(["Sales Invoice", "Quotation"]);
-  console.log(menuItems);
+  const {
+    fetchMenuItems,
+    selectedCategory,
+    customer,
+    transactionType,
+    setTransactionType,
+    setCustomer,
+    searchTerm,
+    setSearchTerm,
+    customers,
+    loading: loadingCustomers,
+    fetchCustomers,
+    availableTransactionTypes,
+    filteredItems,
+    addToCart,
+    selectedAgent,
+    setSelectedAgent,
+    setTarget,
+  } = useMenuContext();
+
+  const {
+		agents,
+		isFetchingAgents,
+		fetchAgents,
+	} = useAgents();
+
+  const [openMixDialog, setOpenMixDialog] = useState(false);
+  
+
 
   useEffect(() => {
     fetchMenuItems();
   }, [fetchMenuItems]);
 
-  // Fetch user transaction types from user mapping
   useEffect(() => {
-    const fetchUserTransactionTypes = async () => {
-      try {
-        const { types, defaultType } = await getUserTransactionTypes();
-        setAvailableTransactionTypes(types);
-        
-        // Set default transaction type if not already set or if current type is not available
-        const currentType = transactionType;
-        if (defaultType && (!currentType || !types.includes(currentType))) {
-          setTransactionType(defaultType);
-        }
-      } catch (err) {
-        console.error("Error loading user transaction types:", err);
-        // Keep default types on error
+    const handleF1Click = (event) => {
+      if (event.key === "F1") {
+        event.preventDefault();
+        setOpenMixDialog(true);
       }
     };
-    fetchUserTransactionTypes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+    window.addEventListener("keydown", handleF1Click);
+    return () => {
+      window.removeEventListener("keydown", handleF1Click);
+    }
+  })
 
   useEffect(() => {
-    const fetchCustomers = async () => {
-      setLoadingCustomers(true);
-      try {
-        const customerList = await getCustomers();
-        setCustomers(customerList);
-      } catch (err) {
-        console.error("Error loading customers:", err);
-        toast.error("Failed to load customers", {
-          description: "Please try refreshing the page",
-          duration: 4000,
-        });
-      } finally {
-        setLoadingCustomers(false);
-      }
-    };
-    fetchCustomers();
-  }, []);
+    if (openMixDialog){
+      setTarget("");
+    }else{
+      setTarget("menu");
+    }
+  }, [openMixDialog])
 
-  const filteredItems = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-
-    return menuItems.filter((item) => {
-      const matchesCategory =
-        !selectedCategoryId ||
-        selectedCategoryId === "all" ||
-        item.custom_menu_category === selectedCategoryId;
-
-      const label = (item.item_name || item.name || "").toLowerCase();
-      const matchesSearch = !term || label.includes(term);
-
-      return matchesCategory && matchesSearch;
-    });
-  }, [menuItems, searchTerm, selectedCategoryId]);
-
+  
   return (
     <>
       <NumPad isOpen={false} setIsOpen={() => {}} />
       <div className="flex items-center justify-between gap-4">
         <p className="text-2xl my-4">{selectedCategory?.name || "Menu"}</p>
+
         <div className="flex items-center gap-2 flex-1 justify-end">
+          
+          
+          <Button
+           variant={"outline"}
+           onClick={() => setOpenMixDialog(true)}
+           className="w-[100px] font-extrabold"
+          >
+            Mix
+          </Button>
           <Select
             value={transactionType}
             onValueChange={setTransactionType}
@@ -111,6 +111,28 @@ const Menu = () => {
             </SelectContent>
           </Select>
           <Combobox
+            type="agent"
+            options={agents.map((agent) => ({
+              value: agent.name,
+              name: agent.name,
+              label: agent.full_name,
+            }))}
+            value={selectedAgent}
+            onValueChange={setSelectedAgent}
+            placeholder={
+              isFetchingAgents ? "Loading agents..." : "Select agent"
+            }
+            searchPlaceholder="Search agent..."
+            disabled={isFetchingAgents}
+            className="w-[200px]"
+            onCreate
+            onCreated={(newAgent) => {
+              fetchAgents();
+              setSelectedAgent(newAgent.value);
+            }}
+          />
+          <Combobox
+            type="customer"
             options={customers.map((cust) => ({
               value: cust.name,
               name: cust.name,
@@ -123,26 +145,17 @@ const Menu = () => {
             searchPlaceholder="Search customers..."
             disabled={loadingCustomers}
             className="w-[200px]"
-            onCreateCustomer={true}
-            onCustomerCreated={(newCustomer) => {
-              // Add new customer to the list and refresh
-              const refreshCustomers = async () => {
-                try {
-                  const customerList = await getCustomers();
-                  setCustomers(customerList);
-                } catch (err) {
-                  console.error("Error refreshing customers:", err);
-                }
-              };
-              refreshCustomers();
+            onCreate
+            onCreated={(newCustomer) => {
+              fetchCustomers();
               setCustomer(newCustomer.value);
             }}
           />
-          <div className="flex items-center w-1/3 bg-background px-2 py-1 rounded-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary">
+          <div className="flex items-center bg-background px-2 py-1 rounded-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary">
             <input
               type="text"
               placeholder="Search"
-              className="w-full focus:outline-none focus:ring-0 focus:border-transparent"
+              className="w-[200px] focus:outline-none focus:ring-0 focus:border-transparent"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -150,11 +163,21 @@ const Menu = () => {
           </div>
         </div>
       </div>
+
       <div className="grid grid-cols-5 gap-4">
-        {filteredItems.map((item) => (
-          <MenuItemCard key={item.name} item={item} />
+        {filteredItems.map((item, index) => (
+          <MenuItemCard key={item.name} item={item} index={index} />
         ))}
       </div>
+
+      <CreateProductBundleDialog
+        open={openMixDialog}
+        onOpenChange={setOpenMixDialog}
+        onCreated={(item) => {
+          addToCart(item);
+          setOpenMixDialog(false);
+        }}
+      />
     </>
   );
 };

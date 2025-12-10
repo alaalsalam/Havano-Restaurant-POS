@@ -126,7 +126,7 @@ export default function PaymentDialog({
     };
   }, [paymentAmounts, total]);
 
-  const handlePay = async () => {
+  async function handlePay (){
     setLoading(true);
     try {
       let paidTotal = sumPayments();
@@ -229,6 +229,20 @@ export default function PaymentDialog({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (loading || paymentStatus.hasDue) return;
+        handlePay();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  })
 
   return (
     <>
