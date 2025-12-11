@@ -14,6 +14,7 @@ import { Input } from "./input";
 import { Label } from "./label";
 import { createCustomer } from "@/lib/utils";
 import { toast } from "sonner";
+import { Textarea } from "./textarea";
 
 export function CreateCustomerDialog({ open, onOpenChange, onCustomerCreated, initialCustomerName = "" }) {
   const [loading, setLoading] = useState(false);
@@ -75,7 +76,7 @@ export function CreateCustomerDialog({ open, onOpenChange, onCustomerCreated, in
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Customer</DialogTitle>
           <DialogDescription>
@@ -83,7 +84,7 @@ export function CreateCustomerDialog({ open, onOpenChange, onCustomerCreated, in
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="customer_name">
                 Customer Name <span className="text-red-500">*</span>
@@ -109,6 +110,110 @@ export function CreateCustomerDialog({ open, onOpenChange, onCustomerCreated, in
                 type="tel"
                 {...register("mobile_no")}
                 placeholder="Enter mobile number (optional)"
+              />
+            </div>
+             <div className="grid gap-2">
+              <Label htmlFor="address">Address</Label>
+              <Textarea
+                id="address"
+                {...register("address")}
+                placeholder="Enter address (optional)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="patient_name">Patient's Name</Label>
+              <Input
+                id="patient_name"
+                {...register("patient_name")}
+                placeholder="Enter patient's name (optional)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="breed">Breed</Label>
+              <Input
+                id="breed"
+                {...register("breed")}
+                placeholder="Enter breed (optional)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="sex">Sex</Label>
+              <Input
+                id="sex"
+                {...register("sex")}
+                placeholder="Enter sex (optional)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="species">Species</Label>
+              <Input
+                id="species"
+                {...register("species")}
+                placeholder="Enter species (optional)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="date_of_birth">Date of Birth</Label>
+              <Input
+                id="date_of_birth"
+                type="date"
+                {...register("date_of_birth")}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="complaint">Complaint</Label>
+              <Textarea
+                id="complaint"
+                {...register("complaint")}
+                placeholder="Enter complaint (optional)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="physical_exam">Physical Exam</Label>
+              <Textarea
+                id="physical_exam"
+                {...register("physical_exam")}
+                placeholder="Enter physical exam findings (optional)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="differential_diagnosis">Differential Diagnosis</Label>
+              <Textarea
+                id="differential_diagnosis"
+                {...register("differential_diagnosis")}
+                placeholder="Enter differential diagnosis (optional)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="diagnosis">Diagnosis</Label>
+              <Textarea
+                id="diagnosis"
+                {...register("diagnosis")}
+                placeholder="Enter diagnosis (optional)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="treatment">Treatment</Label>
+              <Textarea
+                id="treatment"
+                {...register("treatment")}
+                placeholder="Enter treatment (optional)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="advice">Advice</Label>
+              <Textarea
+                id="advice"
+                {...register("advice")}
+                placeholder="Enter advice (optional)"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="follow_up">Follow Up</Label>
+              <Textarea
+                id="follow_up"
+                {...register("follow_up")}
+                placeholder="Enter follow up details (optional)"
               />
             </div>
           </div>
