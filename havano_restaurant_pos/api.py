@@ -4,7 +4,6 @@ from frappe.utils import flt
 from datetime import datetime
 
 
-
 @frappe.whitelist()
 def get_customers():
     """Get all active customers"""
@@ -217,6 +216,44 @@ def create_customer(
         frappe.log_error(frappe.get_traceback(), title)
         return {"success": False, "message": "Failed to create customer", "details": str(e)}
 
+@frappe.whitelist()
+def get_agents():
+    try:
+        agents = frappe.get_all("Agent", fields=["name", "full_name", "certificate_no", "qualification"])
+        return {
+            "success": True,
+            "message": agents,
+        }
+    except Exception as e:
+        title = "Error getting agents"
+        frappe.log_error(frappe.get_traceback(), title)
+        return {
+            "success": False,
+            "message": "Failed to get agents",
+            "details": str(e),
+        }
+
+@frappe.whitelist()
+def create_agent(full_name, certificate_no=None, qualification=None):
+    try:
+        agent = frappe.new_doc("Agent")
+        agent.full_name = full_name
+        agent.certificate_no = certificate_no
+        agent.qualification = qualification
+        agent.save(ignore_permissions=True)
+        frappe.db.commit()
+        return {
+            "success": True,
+            "message": agent
+        }
+    except Exception as e:
+        title = "Error creating agent"
+        frappe.log_error(frappe.get_traceback(), title)
+        return {
+            "success": False,
+            "message": "Failed to create agent",
+            "details": str(e),
+        }
 
 @frappe.whitelist()
 def get_price_lists():
@@ -1040,7 +1077,7 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
 
 
 @frappe.whitelist()
-def create_transaction(doctype, customer, items, company=None, order_type=None, table=None, waiter=None, customer_name=None):
+def create_transaction(doctype, customer, items, company=None, order_type=None, table=None, waiter=None, customer_name=None, agent=None):
     """Create a Sales Invoice or Quotation from items.
     Also creates HA Order for Sales Invoice.
     
@@ -1099,6 +1136,7 @@ def create_transaction(doctype, customer, items, company=None, order_type=None, 
         # For Sales Invoice, set posting_date
         if doctype == "Sales Invoice":
             doc.posting_date = frappe.utils.today()
+            doc.custom_agent = agent if agent else ""
         
         # Add items
         for item in items:
@@ -1413,8 +1451,6 @@ def make_payment_for_transaction(doctype, docname, amount=None, payment_method=N
         }
 
 
-
-
 @frappe.whitelist()
 def get_invoice_json(invoice_name):
     try:
@@ -1514,8 +1550,8 @@ def generate_quotation_json(quote_id):
         fields=["item_name as ProductName", "item_code as productid", "qty as Qty",
                 "rate as Price", "amount as Amount"]
     )
-    #print(items)
-    #, "vat as vat"
+    # print(items)
+    # , "vat as vat"
     for item in items:
         item_code = item.get("productid")
         print(item_code)
@@ -1547,7 +1583,7 @@ def generate_quotation_json(quote_id):
         # Add new fields to item
         item["tax_rate"] = tax_rate
         item["tax_amount"] = tax_amount
-        
+
     # --- Build JSON Data ---
     date_str = str(quote.creation)
     dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f")
@@ -1596,3 +1632,156 @@ def generate_quotation_json(quote_id):
     }
 
     return data
+
+
+@frappe.whitelist()
+def create_product_bundle(new_item, price, items):
+
+    parent_item = None
+
+    try:
+        menu_item_group = frappe.db.get_single_value(
+            "Sample POS Settings", "menu_item_group"
+        )
+
+        if not menu_item_group:
+            frappe.throw("Menu Item Group is not set in Sample POS Settings")
+
+        parent_item = frappe.get_doc(
+            {
+                "doctype": "Item",
+                "item_code": new_item,
+                "item_name": new_item,
+                "item_group": menu_item_group,
+                "standard_rate": flt(price),
+                "is_stock_item": 0,
+            }
+        ).insert(ignore_permissions=True)
+
+        product_bundle = frappe.new_doc("Product Bundle")
+        product_bundle.new_item_code = parent_item.name
+
+        for item_code, qty in items.items():
+            product_bundle.append("items", {"item_code": item_code, "qty": qty})
+
+        product_bundle.insert(ignore_permissions=True)
+
+        return {
+            "success": True,
+            "message": "Product bundle created successfully",
+            # "product_bundle": product_bundle.name,
+            "item": parent_item,
+        }
+
+    except Exception as e:
+        if parent_item:
+            try:
+                parent_item.delete()
+            except Exception as delete_error:
+                frappe.log_error(
+                    f"Failed to delete parent item {parent_item.name}: {delete_error}",
+                    "Product Bundle Cleanup",
+                )
+
+    return {
+        "success": False,
+        "message": str(e) or "Failed to create product bundle",
+    }
+
+@frappe.whitelist()
+def save_item_preparation_remark(item, remark):
+    try:
+        if not item or not remark:
+            return {"success": False, "error": "Item and remark are required"}
+
+        remark = remark.strip()
+
+        if not remark:
+            return {"success": False, "error": "Remark cannot be empty"}
+
+        if not frappe.db.exists("Item", item):
+            return {"success": False, "error": f"Item '{item}' does not exist"}
+
+        if frappe.db.exists("Preparation Remark", {"remark": remark}):
+            prep_remark_name = frappe.db.get_value(
+                "Preparation Remark", {"remark": remark}, "name"
+            )
+        else:
+            prep_doc = frappe.new_doc("Preparation Remark")
+            prep_doc.remark = remark
+            prep_doc.insert(ignore_permissions=True)
+            prep_remark_name = prep_doc.name
+
+        item_doc = frappe.get_doc("Item", item)
+
+        for row in item_doc.custom_preparation_remark:
+            if row.preparation_remark == prep_remark_name:
+                return {"success": True, "message": "Remark already linked to item"}
+
+        item_doc.append(
+            "custom_preparation_remark",
+            {
+                "preparation_remark": prep_remark_name,
+                "remark": remark,
+            },
+        )
+
+        item_doc.save(ignore_permissions=True)
+
+        return {
+            "success": True,
+            "message": "Remark saved and linked to item successfully",
+        }
+
+    except Exception as e:
+        frappe.log_error(
+            title="Save Item Preparation Remark Failed", message=frappe.get_traceback()
+        )
+
+        return {"success": False, "error": str(e)}
+
+
+@frappe.whitelist()
+def get_item_preparation_remarks(item):
+    try:
+        if not item:
+            return {
+                "success": False,
+                "remarks": [],
+                "error": "Item is required"
+            }
+
+        if not frappe.db.exists("Item", item):
+            return {
+                "success": False,
+                "remarks": [],
+                "error": f"Item '{item}' does not exist"
+            }
+
+        item_doc = frappe.get_doc("Item", item)
+        
+        prep_remarks = frappe.get_all("Preparation Remark", pluck="remark")
+
+        remarks = [
+            row.remark
+            for row in item_doc.custom_preparation_remark
+            if row.remark
+        ]
+
+        return {
+            "success": True,
+            "remarks": remarks,
+            "prep_remarks": prep_remarks
+        }
+
+    except Exception as e:
+        frappe.log_error(
+            title="Get Item Preparation Remarks Failed",
+            message=frappe.get_traceback()
+        )
+
+        return {
+            "success": False,
+            "remarks": [],
+            "error": str(e)
+        }

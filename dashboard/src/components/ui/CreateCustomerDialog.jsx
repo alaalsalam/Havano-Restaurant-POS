@@ -16,7 +16,7 @@ import { createCustomer } from "@/lib/utils";
 import { toast } from "sonner";
 import { Textarea } from "./textarea";
 
-export function CreateCustomerDialog({ open, onOpenChange, onCustomerCreated, initialCustomerName = "" }) {
+export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCustomerName = "" }) {
   const [loading, setLoading] = useState(false);
   const {
     register,
@@ -33,8 +33,8 @@ export function CreateCustomerDialog({ open, onOpenChange, onCustomerCreated, in
       
       if (result && result.success) {
         // Call the callback with the new customer
-        if (onCustomerCreated) {
-          onCustomerCreated({
+        if (onCreated) {
+          onCreated({
             name: result.customer,
             customer_name: result.customer_name,
             value: result.customer,

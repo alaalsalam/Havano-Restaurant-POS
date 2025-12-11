@@ -1,11 +1,16 @@
 import { formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useCartStore } from "@/stores/useCartStore";
 
-import { Card, CardHeader, CardTitle } from "../ui/card";
+import { useMenuContext } from "@/contexts/MenuContext";
 
-const MenuItemCard = ({ item }) => {
+import { Card, CardHeader, CardTitle, CardFooter } from "../ui/card";
+
+const MenuItemCard = ({ item, index }) => {
+  const { currentIndex, setCurrentIndex, target, setTarget } = useMenuContext();
 
   const addToCart = useCartStore((state) => state.addToCart);
+  const isActive = currentIndex === index && target === "menu";
 
   const handleAddToCart = () => {
     addToCart({
@@ -18,15 +23,28 @@ const MenuItemCard = ({ item }) => {
       remark: "",
     });
   };
+
+  const handleSelectItem = () => {
+    setCurrentIndex(index);
+    setTarget("menu");
+  };
   return (
     <>
       <Card
-        onClick={handleAddToCart}
-        className="cursor-pointer rounded-lg border shadow-sm transition transform hover:shadow-md hover:scale-[1.02] active:scale-[0.98] active:bg-gray-50"
+        data-index={index}
+        onClick={() => {
+          handleSelectItem();
+          handleAddToCart();
+        }}
+        className={cn(
+          "menu-item cursor-pointer rounded-lg border shadow-sm transition transform hover:shadow-md hover:scale-[1.02] active:scale-[0.98] active:bg-gray-50",
+          isActive && "border-primary bg-primary/10"
+        )}
       >
         <CardHeader className="flex items-center justify-between">
-          <CardTitle>{item.item_name}</CardTitle>
-          <i>{formatCurrency(item.standard_rate)}</i>
+          <CardTitle className="truncate max-w-[140px]">
+            {item.item_name}
+          </CardTitle>
         </CardHeader>
       </Card>
     </>
