@@ -28,9 +28,33 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
 
   const onSubmit = async (data) => {
     setLoading(true);
-    try {
-      const result = await createCustomer(data.customer_name, data.mobile_no);
-      
+      try {
+        console.log("Submitting customer data:", data);
+        const result = await createCustomer(
+          data.customer_name,
+          data.mobile_no,
+          data.sex, 
+          data.breed,
+          data.species,
+          data.date_of_birth, 
+          data.address,
+          data.patient_name,
+          data.treatment,
+          data.advice,
+          data.follow_up,
+          data.complaint, 
+          data.physical_exam, 
+          data.differential_diagnosis,
+          data.diagnosis, 
+          data.advice,
+          data.follow_up,
+ 
+          data.history,
+          data.follow_up,
+          data.email,
+                );
+              console.log("Customer creation result:", result);
+
       if (result && result.success) {
         // Call the callback with the new customer
         if (onCreated) {
@@ -86,15 +110,15 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4 grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="customer_name">
-                Customer Name <span className="text-red-500">*</span>
+              <Label htmlFor="owners_name">
+                Owners Name <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="customer_name"
-                {...register("customer_name", {
-                  required: "Customer name is required",
+                {...register("owners_name, mobile_no = null, sex, breed, species, date_of_birth, address, patient_name, complaint, physical_exam, differential_diagnosis, diagnosis, treatment, advice, follow_up,email,breed", {
+                  required: "Owners name is required",
                 })}
-                placeholder="Enter customer name"
+                placeholder="Enter owners name"
                 className={errors.customer_name ? "border-red-500" : ""}
               />
               {errors.customer_name && (
@@ -114,8 +138,9 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
             </div>
              <div className="grid gap-2">
               <Label htmlFor="address">Address</Label>
-              <Textarea
+              <Input
                 id="address"
+                type="text"
                 {...register("address")}
                 placeholder="Enter address (optional)"
               />
@@ -129,13 +154,14 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="breed">Breed</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="breed"
-                {...register("breed")}
-                placeholder="Enter breed (optional)"
+                id="email"
+                {...register("email")}
+                placeholder="Enter email (optional)"
               />
             </div>
+
             <div className="grid gap-2">
               <Label htmlFor="sex">Sex</Label>
               <Input
@@ -184,20 +210,29 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
                 placeholder="Enter differential diagnosis (optional)"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="diagnosis">Diagnosis</Label>
-              <Textarea
-                id="diagnosis"
-                {...register("diagnosis")}
-                placeholder="Enter diagnosis (optional)"
-              />
-            </div>
-            <div className="grid gap-2">
+                        <div className="grid gap-2">
               <Label htmlFor="treatment">Treatment</Label>
               <Textarea
                 id="treatment"
                 {...register("treatment")}
                 placeholder="Enter treatment (optional)"
+              />
+            </div>
+             
+            <div className="grid gap-2">
+              <Label htmlFor="diagnosis">Diagnosis</Label>
+              <Input
+                id="diagnosis"
+                {...register("diagnosis")}
+                placeholder="Enter diagnosis (optional)"
+              />
+            </div>
+           <div className="grid gap-2">
+              <Label htmlFor="breed">Breed</Label>
+              <Input
+                id="breed"
+                {...register("breed")}
+                placeholder="Enter Breed"
               />
             </div>
             <div className="grid gap-2">
@@ -215,6 +250,25 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
                 {...register("follow_up")}
                 placeholder="Enter follow up details (optional)"
               />
+
+            </div>
+         <div className="grid gap-2">
+              <Label htmlFor="follow_up">Follow Up</Label>
+              <Textarea
+                id="follow_up"
+                {...register("follow_up")}
+                placeholder="Enter follow up details (optional)"
+              />
+              
+            </div>
+                  <div className="grid gap-2">
+              <Label htmlFor="follow_up">History</Label>
+              <Textarea
+                id="history"
+                {...register("history")}
+                placeholder="Enter history (optional)"
+              />
+              
             </div>
           </div>
           <DialogFooter>

@@ -57,6 +57,8 @@ def create_customer(
     diagnosis=None,
     treatment=None,
     advice=None,
+    custom_warehouse=None,
+     custom_cost_center=None,
     follow_up=None,
 ):
     """Create a new customer or update existing customer with extra fields.
@@ -86,6 +88,9 @@ def create_customer(
             "treatment": treatment,
             "advice": advice,
             "follow_up": follow_up,
+             "custom_cost_center": custom_cost_center,
+             "custom_warehouse": custom_warehouse,
+
         }
 
         meta = frappe.get_meta("Customer")

@@ -574,7 +574,7 @@ export async function getCustomers() {
  * @param {string} customerName - Customer name (required)
  * @param {string} mobileNo - Mobile number (optional)
  */
-export async function createCustomer(customerName, mobileNo = null) {
+export async function createCustomer(customerName, mobileNo = null, sex, breed, species, date_of_birth, address, patient_name, complaint, physical_exam, differential_diagnosis, diagnosis, treatment, advice, history,follow_up,email) {
   return attemptWithRetries(
     async () => {
       const { message } = await call.post(
@@ -582,7 +582,24 @@ export async function createCustomer(customerName, mobileNo = null) {
         {
           customer_name: customerName,
           mobile_no: mobileNo,
-        }
+          sex: sex,
+          breed: breed,
+          species: species,
+          date_of_birth: date_of_birth,
+          address: address,
+          patient_name: patient_name,
+          complaint: complaint,
+          physical_exam: physical_exam,
+          differential_diagnosis: differential_diagnosis,
+          diagnosis: diagnosis,
+          treatment: treatment,
+          advice: advice,
+          follow_up: follow_up,
+          history:history,
+          email:email,
+          breed:breed,
+          custom_warehouse: "Main - S",
+          custom_cost_center:"showline - S",}
       );
       return message;
     },
