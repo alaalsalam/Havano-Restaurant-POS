@@ -10,11 +10,22 @@ import {
   DialogDescription,
   DialogFooter,
 } from "./dialog";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
 import { Input } from "./input";
 import { Label } from "./label";
 import { createCustomer } from "@/lib/utils";
 import { toast } from "sonner";
 import { Textarea } from "./textarea";
+import { useMenuContext } from "@/contexts/MenuContext";
 
 export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCustomerName = "" }) {
   const [loading, setLoading] = useState(false);
@@ -25,32 +36,48 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
     setValue,
     formState: { errors },
   } = useForm();
+  const {
+    fetchSpecies,
+    species,
+    loadingSpecies,
+    fetchBreeds,
+    breeds,
+    loadingBreeds
+  } = useMenuContext();
+
+  React.useEffect(() => {
+    if (typeof fetchSpecies === "function") {
+      fetchSpecies();
+    }
+  }, [fetchSpecies]);
+  React.useEffect(() => {
+    if (typeof fetchBreeds === "function") {
+      fetchBreeds();
+    }
+  }, [fetchBreeds]);
+
+  const [pets, setPets] = useState([]);
+
+  const addPet = () =>
+    setPets((p) => [...p, { patient_name: "", species: "", sex: "", date_of_birth: "", breed: "", complaint: "" }]);
+
+  const updatePet = (index, field, value) =>
+    setPets((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+
+  const removePet = (index) => setPets((prev) => prev.filter((_, i) => i !== index));
 
   const onSubmit = async (data) => {
     setLoading(true);
       try {
-        console.log("Submitting customer data:", data);
-        const result = await createCustomer(
-          data.customer_name,
-          data.mobile_no,
-          data.sex, 
-          data.breed,
-          data.species,
-          data.date_of_birth, 
-          data.address,
-          data.patient_name,
-          data.complaint,
-          data.physical_exam,
-          data.differential_diagnosis,
-          data.diagnosis,
-          data.treatment,
-          data.advice,
-          data.follow_up,
-          data.history,
-          data.follow_up,
-          data.email,
-                );
-              console.log("Customer creation result:", result);
+        console.log("Submitting customer data:", data, "pets:", pets);
+        const payload = { ...data, pets };
+        console.log("Payload for customer creation:", payload);
+        const result = await createCustomer(payload);
+        console.log("Customer creation result:", result);
 
       if (result && result.success) {
         // Call the callback with the new customer
@@ -64,6 +91,7 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
         }
         
         reset();
+        setPets([]);
         onOpenChange(false);
       } else {
         toast.error("Failed to Create Customer", {
@@ -91,9 +119,15 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
   const handleOpenChange = (isOpen) => {
     if (!isOpen) {
       reset();
+      setPets([]);
     }
     onOpenChange(isOpen);
   };
+
+  const speciesOptions = Array.isArray(species) ? species : [];
+  const breedOptions = Array.isArray(breeds) ? breeds : [];
+  const resolveSpeciesValue = (s) => s?.species ?? s?.name ?? s ?? "";
+  const resolveBreedValue = (b) => b?.pet_breed ?? b ?? "";
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -107,12 +141,12 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4 grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="owners_name">
+              <Label htmlFor="customer_name">
                 Owners Name <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="customer_name"
-                {...register("owners_name, mobile_no = null, sex, breed, species, date_of_birth, address, patient_name, complaint, physical_exam, differential_diagnosis, diagnosis, treatment, advice, follow_up,email,breed", {
+                {...register("customer_name", {
                   required: "Owners name is required",
                 })}
                 placeholder="Enter owners name"
@@ -123,151 +157,115 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated, initialCus
                   {errors.customer_name.message}
                 </p>
               )}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="mobile_no">Mobile Number</Label>
-              <Input
-                id="mobile_no"
-                type="tel"
-                {...register("mobile_no")}
-                placeholder="Enter mobile number (optional)"
-              />
-            </div>
-             <div className="grid gap-2">
-              <Label htmlFor="address">Address</Label>
-              <Input
-                id="address"
-                type="text"
-                {...register("address")}
-                placeholder="Enter address (optional)"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="patient_name">Patient's Name</Label>
-              <Input
-                id="patient_name"
-                {...register("patient_name")}
-                placeholder="Enter patient's name (optional)"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                {...register("email")}
-                placeholder="Enter email (optional)"
-              />
+
+              <div className="pt-2 flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addPet}
+                >
+                  Add Pet
+                </Button>
+                <span className="text-sm text-muted-foreground">Add a pet to this customer</span>
+              </div>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="sex">Sex</Label>
-              <Input
-                id="sex"
-                {...register("sex")}
-                placeholder="Enter sex (optional)"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="species">Species</Label>
-              <Input
-                id="species"
-                {...register("species")}
-                placeholder="Enter species (optional)"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="date_of_birth">Date of Birth</Label>
-              <Input
-                id="date_of_birth"
-                type="date"
-                {...register("date_of_birth")}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="complaint">Complaint</Label>
-              <Textarea
-                id="complaint"
-                {...register("complaint")}
-                placeholder="Enter complaint (optional)"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="physical_exam">Physical Exam</Label>
-              <Textarea
-                id="physical_exam"
-                {...register("physical_exam")}
-                placeholder="Enter physical exam findings (optional)"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="differential_diagnosis">Differential Diagnosis</Label>
-              <Textarea
-                id="differential_diagnosis"
-                {...register("differential_diagnosis")}
-                placeholder="Enter differential diagnosis (optional)"
-              />
-            </div>
-                        <div className="grid gap-2">
-              <Label htmlFor="treatment">Treatment</Label>
-              <Textarea
-                id="treatment"
-                {...register("treatment")}
-                placeholder="Enter treatment (optional)"
-              />
-            </div>
-             
-            <div className="grid gap-2">
-              <Label htmlFor="diagnosis">Diagnosis</Label>
-              <Input
-                id="diagnosis"
-                {...register("diagnosis")}
-                placeholder="Enter diagnosis (optional)"
-              />
-            </div>
-           <div className="grid gap-2">
-              <Label htmlFor="breed">Breed</Label>
-              <Input
-                id="breed"
-                {...register("breed")}
-                placeholder="Enter Breed"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="advice">Advice</Label>
-              <Textarea
-                id="advice"
-                {...register("advice")}
-                placeholder="Enter advice (optional)"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="follow_up">Follow Up</Label>
-              <Textarea
-                id="follow_up"
-                {...register("follow_up")}
-                placeholder="Enter follow up details (optional)"
-              />
-
-            </div>
-         <div className="grid gap-2">
-              <Label htmlFor="follow_up">Follow Up</Label>
-              <Textarea
-                id="follow_up"
-                {...register("follow_up")}
-                placeholder="Enter follow up details (optional)"
-              />
-              
-            </div>
-                  <div className="grid gap-2">
-              <Label htmlFor="follow_up">History</Label>
-              <Textarea
-                id="history"
-                {...register("history")}
-                placeholder="Enter history (optional)"
-              />
-              
-            </div>
           </div>
+          {pets.length > 0 && (
+            <div className="mt-4 overflow-auto">
+              <table className="w-full table-auto border-collapse">
+                <thead>
+                  <tr className="text-left">
+                    <th className="px-2 py-1">Patient Name</th>
+                    <th className="px-2 py-1">Species</th>
+                    <th className="px-2 py-1">Sex</th>
+                    <th className="px-2 py-1">Date of Birth</th>
+                    <th className="px-2 py-1">Breed</th>
+                    <th className="px-2 py-1">Complaint</th>
+                    <th className="px-2 py-1">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pets.map((pet, idx) => (
+                    <tr key={idx} className="border-t">
+                      <td className="px-2 py-1">
+                        <Input value={pet.patient_name} onChange={(e) => updatePet(idx, "patient_name", e.target.value)} placeholder="Patient Name" />
+                      </td>
+                    <td className="px-2 py-1">
+                        <Select
+                          onValueChange={(value) => updatePet(idx, "species", value)}
+                          value={pet.species}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select Species" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Species</SelectLabel>
+                              {speciesOptions.map((s) => (
+                                <SelectItem key={resolveSpeciesValue(s)} value={resolveSpeciesValue(s)}>
+                                  {s.species}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </td>
+
+                      <td className="px-2 py-1">
+                        <Select 
+                          onValueChange={(value) => updatePet(idx, "sex", value)}
+                          value={pet.sex}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select Sex" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Sex</SelectLabel>
+                              <SelectItem value="Male">Male</SelectItem>
+                              <SelectItem value="Female">Female</SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select> 
+                      </td>
+                      <td className="px-2 py-1">
+                        <Input type="date" value={pet.date_of_birth} onChange={(e) => updatePet(idx, "date_of_birth", e.target.value)} />
+                      </td>
+                      <td className="px-2 py-1">
+
+                        <Select
+                          onValueChange={(value) => updatePet(idx, "breed", value)}
+                          value={pet.breed}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select Breed" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Breed</SelectLabel>
+                              {breedOptions.map((b,i) => (
+                                <SelectItem key={i} value={resolveBreedValue(b)}>
+                                  {b.pet_breed}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select> 
+                      </td>
+                      <td className="px-2 py-1">
+                        <Textarea value={pet.complaint} onChange={(e) => updatePet(idx, "complaint", e.target.value)} placeholder="Complaint" />
+                      </td>
+                      <td className="px-2 py-1">
+                        <Button type="button" variant="outline" onClick={() => removePet(idx)}>Remove</Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           <DialogFooter>
             <Button
               type="button"

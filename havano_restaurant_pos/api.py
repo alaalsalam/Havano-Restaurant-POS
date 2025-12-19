@@ -58,8 +58,9 @@ def create_customer(
     treatment=None,
     advice=None,
     custom_warehouse=None,
-     custom_cost_center=None,
+    custom_cost_center=None,
     follow_up=None,
+    pets=None,
 ):
     """Create a new customer or update existing customer with extra fields.
 
@@ -118,6 +119,23 @@ def create_customer(
                     frappe.db.get_single_value("Selling Settings", "territory") or "All Territories"
                 )
 
+            # If no custom_warehouse provided, try to fetch a sensible default from Stock Settings
+            if not extra_values.get("custom_warehouse"):
+                try:
+                    default_wh = frappe.db.get_single_value("Stock Settings", "default_warehouse")
+                    if default_wh:
+                        extra_values["custom_warehouse"] = default_wh
+                except Exception:
+                    # ignore if Stock Settings not present
+                    pass
+            if not extra_values.get("custom_cost_center"):
+                try:
+                    default_wh = frappe.db.get_single_value("Stock Settings", "default_cost_center")
+                    if default_wh:
+                        extra_values["custom_cost_center"] = default_wh
+                except Exception:
+                    # ignore if Stock Settings not present
+                    pass
             # Apply extra values only for fields that exist on the doctype
             for key, val in extra_values.items():
                 if val is None:
@@ -164,12 +182,55 @@ def create_customer(
                         # Best-effort: set phone on Contact table if different structure
                         pass
 
+            # Process pets (if any) and create Pet Details docs with `patient_owner` set to this customer
+            created_pets = []
+            try:
+                pet_rows = frappe.parse_json(pets) if isinstance(pets, str) else (pets or [])
+                if pet_rows:
+                    pet_meta = None
+                    for pet in pet_rows:
+                        if not isinstance(pet, dict):
+                            continue
+                        try:
+                            # attempt to create a Pet Details doc if doctype exists
+                            if pet_meta is None:
+                                try:
+                                    pet_meta = frappe.get_meta("Patient Name")
+                                except Exception:
+                                    pet_meta = None
+
+                            if pet_meta:
+                                pet_doc = frappe.new_doc("Patient Name")
+                                mapping = {
+                                    "patient_name": pet.get("patient_name"),
+                                    "species": pet.get("species"),
+                                    "sex": pet.get("sex"),
+                                    "date_of_birth": pet.get("date_of_birth"),
+                                    "breed": pet.get("breed"),
+                                    "complaint": pet.get("complaint"),
+                                    "patient_owner": customer.name,
+                                }
+                                for k, v in mapping.items():
+                                    if v is None:
+                                        continue
+                                    if k == "patient_owner" or pet_meta.has_field(k):
+                                        setattr(pet_doc, k, v)
+
+                                pet_doc.insert(ignore_permissions=True)
+                                created_pets.append(pet_doc.name)
+                        except Exception:
+                            frappe.log_error(frappe.get_traceback(), "Error creating Pet Details from create_customer")
+            except Exception:
+                # invalid JSON or other error; ignore pets
+                created_pets = []
+
             frappe.db.commit()
 
             return {
                 "success": True,
                 "message": "Customer already exists. Fields updated.",
                 "customer": customer.name,
+                "created_pets": created_pets,
             }
 
         # Create new customer
@@ -182,6 +243,26 @@ def create_customer(
             frappe.db.get_single_value("Selling Settings", "customer_group") or "All Customer Groups"
         )
         customer.territory = frappe.db.get_single_value("Selling Settings", "territory") or "All Territories"
+        user = frappe.get_doc('User',frappe.session.user)
+        # If no custom_warehouse provided, try to fetch a sensible default from Stock Settings
+        if not extra_values.get("custom_warehouse"):
+            try:
+                default_wh =  frappe.db.get_value("User Permission",{"user": user.name, "allow": "Warehouse", "is_default": 1}, "for_value")
+                if default_wh:
+                    extra_values["custom_warehouse"] = default_wh
+            except Exception:
+                pass
+
+        # If no custom_cost_center provided, try to fetch a sensible default from Stock Settings
+        if not extra_values.get("custom_cost_center"):
+            try:
+                default_cc =  frappe.db.get_value("User Permission", {"user": user.name, "allow": "Cost Center", "is_default": 1}, "for_value")
+                if default_cc:
+                    extra_values["custom_cost_center"] = default_cc
+            except Exception:
+                # ignore if Stock Settings not present
+                print('settings not found')
+                pass
 
         # Set extra fields if they exist on the doctype
         for key, val in extra_values.items():
@@ -212,9 +293,49 @@ def create_customer(
                 # If contact insertion fails, continue (best-effort)
                 pass
 
+        # Process pets for newly created customer
+        created_pets = []
+        try:
+            pet_rows = frappe.parse_json(pets) if isinstance(pets, str) else (pets or [])
+            if pet_rows:
+                pet_meta = None
+                for pet in pet_rows:
+                    if not isinstance(pet, dict):
+                        continue
+                    try:
+                        if pet_meta is None:
+                            try:
+                                pet_meta = frappe.get_meta("Patient Name")
+                            except Exception:
+                                pet_meta = None
+
+                        if pet_meta:
+                            pet_doc = frappe.new_doc("Patient Name")
+                            mapping = {
+                                "patient_name": pet.get("patient_name"),
+                                "species": pet.get("species"),
+                                "sex": pet.get("sex"),
+                                "dob": pet.get("date_of_birth"),
+                                "breed": pet.get("breed"),
+                                "complaint": pet.get("complaint"),
+                                "patient_owner": customer.name,
+                            }
+                            for k, v in mapping.items():
+                                if v is None:
+                                    continue
+                                if k == "patient_owner" or pet_meta.has_field(k):
+                                    setattr(pet_doc, k, v)
+
+                            pet_doc.insert(ignore_permissions=True)
+                            created_pets.append(pet_doc.name)
+                    except Exception:
+                        frappe.log_error(frappe.get_traceback(), "Error creating Pet Details from create_customer")
+        except Exception:
+            created_pets = []
+
         frappe.db.commit()
 
-        return {"success": True, "message": "Customer created successfully", "customer": customer.name, "customer_name": customer.customer_name}
+        return {"success": True, "message": "Customer created successfully", "customer": customer.name, "customer_name": customer.customer_name, "created_pets": created_pets}
 
     except Exception as e:
         title = "Error creating customer"
