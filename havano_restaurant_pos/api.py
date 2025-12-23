@@ -1808,19 +1808,19 @@ def create_product_bundle(new_item, price, items):
     parent_item = None
 
     try:
-        menu_item_group = frappe.db.get_single_value(
-            "Sample POS Settings", "menu_item_group"
-        )
+        # menu_item_group = frappe.db.get_single_value(
+        #     "Sample POS Settings", "menu_item_group"
+        # )
 
-        if not menu_item_group:
-            frappe.throw("Menu Item Group is not set in Sample POS Settings")
+        # if not menu_item_group:
+        #     frappe.throw("Menu Item Group is not set in Sample POS Settings")
 
         parent_item = frappe.get_doc(
             {
                 "doctype": "Item",
                 "item_code": new_item,
                 "item_name": new_item,
-                "item_group": menu_item_group,
+                "item_group": "Products",
                 "standard_rate": flt(price),
                 "is_stock_item": 0,
             }
