@@ -1,5 +1,5 @@
-import { Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Search, X } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
 
 import MenuItemCard from "@/components/MenuPage/MenuItemCard";
 import { useMenuContext } from "@/contexts/MenuContext";
@@ -19,7 +19,6 @@ import NumPad from "./UpdateCartDialog";
 import { Button } from "../ui/button";
 
 import { CreateProductBundleDialog } from "../ui/CreateProductBundleDialog";
-import { set } from "date-fns";
 
 const Menu = () => {
   const {
@@ -39,7 +38,9 @@ const Menu = () => {
     addToCart,
     selectedAgent,
     setSelectedAgent,
+    target,
     setTarget,
+    menuGridRef,
   } = useMenuContext();
 
   const {
@@ -50,7 +51,14 @@ const Menu = () => {
 
   const [openMixDialog, setOpenMixDialog] = useState(false);
   
+  const searchInputRef = useRef(null);
 
+
+  useEffect(() => {
+    if (!openMixDialog) {
+      searchInputRef.current?.focus();
+    }
+  }, [openMixDialog]);
 
   useEffect(() => {
     fetchMenuItems();
@@ -70,6 +78,32 @@ const Menu = () => {
   })
 
   useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "ArrowDown" && target === "menu") {
+        e.preventDefault();
+
+        menuGridRef.current?.scrollBy({
+          top: 150, // scroll amount
+          behavior: "smooth",
+        });
+      }
+
+      if (e.key === "ArrowUp" && target === "menu") {
+        e.preventDefault();
+
+        menuGridRef.current?.scrollBy({
+          top: -150,
+          behavior: "smooth",
+        });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+
+  useEffect(() => {
     if (openMixDialog){
       setTarget("");
     }else{
@@ -85,14 +119,12 @@ const Menu = () => {
         <p className="text-2xl my-4">{selectedCategory?.name || "Menu"}</p>
 
         <div className="flex items-center gap-2 flex-1 justify-end">
-          
-          
           <Button
-           variant={"outline"}
-           onClick={() => setOpenMixDialog(true)}
-           className="w-[100px] font-extrabold"
+            variant={"outline"}
+            onClick={() => setOpenMixDialog(true)}
+            className="w-[100px] font-extrabold"
           >
-            Mix
+            Mix (F1)
           </Button>
           <Select
             value={transactionType}
@@ -154,17 +186,35 @@ const Menu = () => {
           <div className="flex items-center bg-background px-2 py-1 rounded-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary">
             <input
               type="text"
+              ref={searchInputRef}
+              autoFocus
               placeholder="Search"
               className="w-[200px] focus:outline-none focus:ring-0 focus:border-transparent"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onBlur={() => {
+                // Refocus immediately when input loses focus
+                setTimeout(() => {
+                  searchInputRef.current?.focus();
+                }, 0);
+              }}
             />
-            <Search className="text-primary" />
+            {searchTerm.length > 0 ? (
+              <X
+                className="text-primary cursor-pointer"
+                onClick={() => setSearchTerm("")}
+              />
+            ) : (
+              <Search className="text-primary" />
+            )}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-4">
+      <div
+        ref={menuGridRef}
+        className="grid grid-cols-5 gap-4 max-h-[80vh] overflow-y-auto scrollbar pb-4"
+      >
         {filteredItems.map((item, index) => (
           <MenuItemCard key={item.name} item={item} index={index} />
         ))}

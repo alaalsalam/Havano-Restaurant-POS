@@ -68,10 +68,18 @@ const Cart = () => {
     console.log("  orderTypes:", orderType);
     console.log("  transactionType:", transactionType);
     console.log("  activeOrderId:", activeOrderId);
-    console.log("  cart.length:", cart?.length);
+    console.log("  cart:", cart);
 
     if (!cart || cart.length === 0) {
       console.log("  ❌ Cart is empty, returning");
+      return;
+    }
+
+    if (cart.some(item => item.price < 1)) {
+      toast.error("Invalid item price", {
+        description: "One or more items have invalid prices. Please update item prices before proceeding.",
+        duration: 5000,
+      });
       return;
     }
 
@@ -403,8 +411,8 @@ const Cart = () => {
             title={cart.length === 0 ? "Add items to your cart first" : ""}
           >
             {transactionType === "Quotation" 
-              ? (activeQuotationId ? "Convert to Sales Invoice" : "Create Quotation")
-              : (activeOrderId ? "Update Order" : "Place Order")
+              ? (activeQuotationId ? "Convert to Sales Invoice" : "Create Quotation (F10)")
+              : (activeOrderId ? "Update Order" : "Place Order (F10)")
             }
           </Button>
         </CardFooter>

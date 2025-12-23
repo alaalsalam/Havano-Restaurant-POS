@@ -69,7 +69,7 @@ function SelectableQuantityTable({ value: rows, onChange, options }) {
       rows.length > 0
         ? String(Math.max(...rows.map((r) => parseInt(r.id, 10))) + 1)
         : "1";
-    onChange([...rows, { id: newId, selectedOption: "", quantity: 0 }]);
+    onChange([...rows, { id: newId, selectedOption: "", quantity: 1 }]);
   };
 
   const deleteRow = (id) => {
@@ -129,10 +129,10 @@ function SelectableQuantityTable({ value: rows, onChange, options }) {
                 <td className="px-6 py-4">
                   <Input
                     type="number"
-                    min="0"
+                    min="1"
                     value={row.quantity}
                     onChange={(e) =>
-                      updateQuantity(row.id, parseInt(e.target.value) || 0)
+                      updateQuantity(row.id, parseInt(e.target.value) || 1)
                     }
                     className="text-center"
                   />

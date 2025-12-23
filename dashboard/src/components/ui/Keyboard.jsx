@@ -1,3 +1,4 @@
+import { se } from "date-fns/locale";
 import React from "react";
 
 const KEYS = [
@@ -39,6 +40,7 @@ export default function Keyboard({ value, onChange, setValue, min = 0, max = nul
       console.warn("Keyboard: no change handler provided");
     }
   };
+
 
   const handlePreset = (key) => {
     if (disabled) return;

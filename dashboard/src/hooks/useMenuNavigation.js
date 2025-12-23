@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import { useCartStore } from "@/stores/useCartStore";
 
-export default function useMenuNavigation({ NUMBER_OF_COLUMNS, items, target, setTarget, visibleCategories }) {
+export default function useMenuNavigation({ NUMBER_OF_COLUMNS, items, target, setTarget, visibleCategories, menuGridRef }) {
 	const [currentIndex, setCurrentIndex] = useState(0);
 	const {addToCart, cart, removeFromCart, openUpdateDialog} = useCartStore();
 	const numberOfItems = items.length;
+	const getRowHeight = () => {
+		if (!menuGridRef.current) return 0;
+
+		const rows = Math.ceil(numberOfItems / NUMBER_OF_COLUMNS);
+		return menuGridRef.current.scrollHeight / rows;
+	};
 
 	const handleSelectItem = (index) => {
 		const selectedItem = items[index];
@@ -21,47 +27,63 @@ export default function useMenuNavigation({ NUMBER_OF_COLUMNS, items, target, se
 		}
 	};
 
+
 	const handleMenuNavigation = (event) => {
 		if (currentIndex === -1) return;
 
+		const rowHeight = getRowHeight();
+
 		switch (event.key) {
-			case "ArrowUp":
-				if (currentIndex - NUMBER_OF_COLUMNS >= 0) {
-					setCurrentIndex(currentIndex - NUMBER_OF_COLUMNS);
+			case "ArrowUp": {
+				const nextIndex = currentIndex - NUMBER_OF_COLUMNS;
+
+				if (nextIndex >= 0) {
+					setCurrentIndex(nextIndex);
+
+				menuGridRef.current?.scrollBy({
+					top: -rowHeight,
+					behavior: "smooth",
+					})
 				}
 				break;
+			}
 
-			case "ArrowDown":
-				if (currentIndex + NUMBER_OF_COLUMNS < numberOfItems) {
-					setCurrentIndex(currentIndex + NUMBER_OF_COLUMNS);
-				}
-				if (currentIndex + NUMBER_OF_COLUMNS >= numberOfItems) {
-					setCurrentIndex(numberOfItems - 1);
+			case "ArrowDown": {
+				const nextIndex = currentIndex + NUMBER_OF_COLUMNS;
+
+				if (nextIndex < numberOfItems) {
+					setCurrentIndex(nextIndex);
+
+					menuGridRef.current?.scrollBy({
+					top: rowHeight,
+					behavior: "smooth",
+				});
 				}
 				break;
+			}
 
-			case "ArrowLeft":
+			case "ArrowLeft": {
 				if (currentIndex % NUMBER_OF_COLUMNS !== 0) {
 					setCurrentIndex(currentIndex - 1);
-				}else{
-					setTarget("category");
+				} else {
+					// setTarget("category");
 					setCurrentIndex(0);
 				}
 				break;
+			}
 
-			case "ArrowRight":
+			case "ArrowRight": {
 				if (
 					(currentIndex + 1) % NUMBER_OF_COLUMNS !== 0 &&
 					currentIndex + 1 < numberOfItems
 				) {
 					setCurrentIndex(currentIndex + 1);
-				}else{
-					if (cart.length > 0) {
-						setTarget("cart");
-						setCurrentIndex(0);
-					}
+				} else if (cart.length > 0) {
+					setTarget("cart");
+					setCurrentIndex(0);
 				}
 				break;
+			}
 
 			case "Enter":
 				handleSelectItem(currentIndex);

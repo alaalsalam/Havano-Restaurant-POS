@@ -141,9 +141,9 @@ export const getBgColor = () => {
   return colors[Math.floor(Math.random() * colors.length)];
 };
 
-export async function getNumberOfItems(category) {
+export async function getNumberOfItems(item_group = null) {
   try {
-    const params = category ? { category } : {};
+    const params = item_group ? { item_group } : {};
 
     const { message } = await call.get(
       "havano_restaurant_pos.api.get_number_of_items",
