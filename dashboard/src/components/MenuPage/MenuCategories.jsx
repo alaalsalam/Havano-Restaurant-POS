@@ -1,5 +1,6 @@
 import { useMenuContext } from "@/contexts/MenuContext";
 import { cn } from "@/lib/utils";
+import { se } from "date-fns/locale";
 import { useEffect } from "react";
 
 const MenuCategories = () => {
@@ -10,12 +11,13 @@ const MenuCategories = () => {
     visibleCategories,
     setSelectedCategory,
     target,
-    currentIndex
+    currentIndex,
+    setCurrentIndex,
   } = useMenuContext();
 
 
   return (
-    <div className="overflow-y-auto scrollbar-hide">
+    <div className="overflow-y-auto max-h-[80vh] scrollbar-hide">
       <p className="text-xl text-black mb-2">Categories</p>
       <div className="grid grid-cols-1 gap-4">
         {visibleCategories.map((category, index) => (
@@ -34,11 +36,13 @@ const MenuCategories = () => {
                 index === currentIndex &&
                 "border-1 border-primary shadow-[0_0_40px_rgba(255,255,255,0.5)]"
             )}
-            onClick={() =>
+            onClick={() =>{
+              if (target === "category" && index === currentIndex) return;
+              setCurrentIndex(index);
               setSelectedCategory({
                 id: category.name,
                 name: category.category_name,
-              })
+              })}
             }
           >
             <div className="flex justify-between items-center gap-2">

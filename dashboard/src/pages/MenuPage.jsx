@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { isRestaurantMode } from "@/lib/utils";
 import Cart from "@/components/MenuPage/Cart";
 import Menu from "@/components/MenuPage/Menu";
 import MenuCategories from "@/components/MenuPage/MenuCategories";
@@ -12,6 +13,19 @@ const MenuPage = () => {
   const { startNewTakeAwayOrder, activeTableId } = useCartStore();
   const isDineInSelected = Boolean(activeTableId);
 
+  const [isRestMode, setIsRestMode] = useState(false);
+  const [loadingMode, setLoadingMode] = useState(true);
+
+  useEffect(() => {
+    const checkMode = async () => {
+      const result = await isRestaurantMode();
+      setIsRestMode(Boolean(result));
+      setLoadingMode(false);
+    };
+
+    checkMode();
+  }, []);
+
   const handleDineInClick = () => {
     navigate("/tables");
   };
@@ -20,6 +34,10 @@ const MenuPage = () => {
     startNewTakeAwayOrder();
   };
 
+  if (loadingMode) {
+    return null;
+  }
+
   return (
     <MenuProvider>
       <Container>
@@ -27,27 +45,35 @@ const MenuPage = () => {
           <div className="col-span-1 border-r pr-4">
             <MenuCategories />
           </div>
+
           <div className="col-span-6">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <label className="cursor-not-allowed opacity-50">
+                <label
+                  className={`${
+                    !isRestMode
+                      ? "cursor-not-allowed opacity-50"
+                      : "cursor-pointer"
+                  }`}
+                >
                   <input
                     type="radio"
                     name="order-type"
                     value="dine-in"
                     checked={isDineInSelected}
                     className="peer sr-only"
-                    disabled
+                    disabled={!isRestMode}
                     onChange={() => {}}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                     }}
                   />
-                  <span className="rounded-full border border-slate-300 px-3 py-1 text-sm font-medium text-slate-600 transition-colors peer-checked:border-slate-900 peer-checked:bg-slate-900 peer-checked:text-white">
+                  <span className="rounded-full border px-3 py-1 text-sm font-medium transition-colors peer-checked:bg-slate-900 peer-checked:text-white">
                     Dine In
                   </span>
                 </label>
+
                 <label className="cursor-pointer">
                   <input
                     type="radio"
@@ -58,14 +84,16 @@ const MenuPage = () => {
                     onChange={() => {}}
                     onClick={handleTakeAwayClick}
                   />
-                  <span className="rounded-full border border-slate-300 px-3 py-1 text-sm font-medium text-slate-600 transition-colors peer-checked:border-slate-900 peer-checked:bg-slate-900 peer-checked:text-white">
+                  <span className="rounded-full border px-3 py-1 text-sm font-medium transition-colors peer-checked:bg-slate-900 peer-checked:text-white">
                     Take Away
                   </span>
                 </label>
               </div>
             </div>
-            <Menu/>
+
+            <Menu />
           </div>
+
           <div className="col-span-2">
             <Cart />
           </div>

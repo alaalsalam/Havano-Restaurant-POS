@@ -1,5 +1,4 @@
-import { useState } from "react";
-import * as React from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "./button";
 import {
@@ -21,7 +20,7 @@ export function CreateProductBundleDialog({ open, onOpenChange, onCreated }) {
   const [loading, setLoading] = useState(false);
   const [totalPrice, setTotalPrice] = useState(0);
   const [tableRows, setTableRows] = useState([
-    { id: "1", selectedOption: "", quantity: 0 },
+    { id: "1", selectedOption: "", quantity: 1 },
   ]);
 
   const {
@@ -38,7 +37,12 @@ export function CreateProductBundleDialog({ open, onOpenChange, onCreated }) {
     },
   });
 
-  const { menuItems, fetchMenuItems } = useMenuStore();
+  const { menuItems, fetchMenuItems, productBundles, fetchProductBundles } = useMenuStore();
+
+  useEffect(() => {
+    fetchMenuItems();
+    fetchProductBundles();
+  }, [fetchMenuItems, fetchProductBundles]);
 
   const {
     createBundle,
@@ -46,8 +50,11 @@ export function CreateProductBundleDialog({ open, onOpenChange, onCreated }) {
     error: bundleError,
   } = useCreateProductBundle();
 
-  const productOptions = menuItems.map((item) => ({
-    id: item.name, // Changed from value to id to match SelectableQuantityTable
+  const productOptions = menuItems.filter((item => 
+    !productBundles.some(bundle => bundle.new_item_code === item.name)
+  ))
+  .map((item) => ({
+    id: item.name,
     label: item.item_name,
     price: item.standard_rate ?? item.price ?? 0,
   }));
@@ -80,7 +87,7 @@ export function CreateProductBundleDialog({ open, onOpenChange, onCreated }) {
     setValue("bundle_items", items, { shouldValidate: true });
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     setValue("price", totalPrice, { shouldValidate: true });
   }, [totalPrice, setValue]);
 
@@ -100,7 +107,7 @@ export function CreateProductBundleDialog({ open, onOpenChange, onCreated }) {
           onCreated(result.item);
         }
         reset();
-        setTableRows([{ id: "1", selectedOption: "", quantity: 0 }]);
+        setTableRows([{ id: "1", selectedOption: "", quantity: 1 }]);
         setTotalPrice(0);
         onOpenChange(false);
         toast.success("Item created successfully", {
@@ -126,7 +133,7 @@ export function CreateProductBundleDialog({ open, onOpenChange, onCreated }) {
   const handleOpenChange = (isOpen) => {
     if (!isOpen) {
       reset();
-      setTableRows([{ id: "1", selectedOption: "", quantity: 0 }]);
+      setTableRows([{ id: "1", selectedOption: "", quantity: 1 }]);
       setTotalPrice(0);
     }
     onOpenChange(isOpen);

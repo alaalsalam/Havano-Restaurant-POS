@@ -41,63 +41,62 @@ def get_customers():
     return customers
 
 
-@frappe.whitelist()
-def create_customer(
-    customer_name,
-    mobile_no=None,
-    address=None,
-    patient_name=None,
-    breed=None,
-    sex=None,
-    species=None,
-    date_of_birth=None,
-    complaint=None,
-    physical_exam=None,
-    differential_diagnosis=None,
-    diagnosis=None,
-    treatment=None,
-    advice=None,
-    custom_warehouse=None,
-    custom_cost_center=None,
-    follow_up=None,
-    pets=None,
-):
-    """Create a new customer or update existing customer with extra fields.
+def get_default_customer():
+    """
+    Fetch the default customer.
+    Tries HA POS Setting first, then Sample POS Settings.
+    Returns None if not found.
+    """
+    try:
+        # Try HA POS Setting first
+        ha_settings = frappe.get_all(
+            "HA POS Setting",
+            filters={"ha_pos_settings_on": 1},
+            fields=["name", "default_customer"],
+            limit_page_length=1,
+        )
 
-    The new fields are optional and will be written to the Customer doc only
-    if those fields exist on the doctype (to avoid validation errors).
+        if ha_settings and ha_settings[0].get("default_customer"):
+            return ha_settings[0]["default_customer"]
+
+        # Try Sample POS Settings
+        try:
+            default_dine_in_customer = frappe.db.get_single_value(
+                "Sample POS Settings", "default_dine_in_customer"
+            )
+            if default_dine_in_customer:
+                return default_dine_in_customer
+        except Exception as e:
+            frappe.log_error(
+                e, "Error fetching default customer from Sample POS Settings"
+            )
+
+        return None
+
+    except Exception as e:
+        frappe.log_error(e, "Error fetching default customer")
+        return None
+
+
+@frappe.whitelist()
+def create_customer(customer_name, mobile_no=None):
+    """Create a new customer.
+
+    Args:
+        customer_name: Customer name (required)
+        mobile_no: Mobile number (optional)
     """
     try:
         if not customer_name or not customer_name.strip():
-            return {"success": False, "message": "Customer name is required"}
+            return {
+                "success": False,
+                "message": "Customer name is required",
+            }
 
-        name_value = customer_name.strip()
-
-        # Helper: fields that can be set on Customer (will only set if doctype has field)
-        extra_values = {
-            "mobile_no": mobile_no.strip() if mobile_no and isinstance(mobile_no, str) else mobile_no,
-            "address": address,
-            "patient_name": patient_name,
-            "breed": breed,
-            "sex": sex,
-            "species": species,
-            "date_of_birth": date_of_birth,
-            "complaint": complaint,
-            "physical_exam": physical_exam,
-            "differential_diagnosis": differential_diagnosis,
-            "diagnosis": diagnosis,
-            "treatment": treatment,
-            "advice": advice,
-            "follow_up": follow_up,
-             "custom_cost_center": custom_cost_center,
-             "custom_warehouse": custom_warehouse,
-
-        }
-
-        meta = frappe.get_meta("Customer")
-
-        # Check if customer exists
-        existing = frappe.db.exists("Customer", {"customer_name": name_value})
+        # Check if customer with same name already exists
+        existing = frappe.db.exists(
+            "Customer", {"customer_name": customer_name.strip()}
+        )
         if existing:
             # Update existing customer with any provided fields
             customer = frappe.get_doc("Customer", existing)
@@ -240,112 +239,57 @@ def create_customer(
             customer.customer_name = name_value
         customer.customer_type = "Company"
         customer.customer_group = (
-            frappe.db.get_single_value("Selling Settings", "customer_group") or "All Customer Groups"
+            frappe.db.get_single_value("Selling Settings", "customer_group")
+            or "All Customer Groups"
         )
-        customer.territory = frappe.db.get_single_value("Selling Settings", "territory") or "All Territories"
-        user = frappe.get_doc('User',frappe.session.user)
-        # If no custom_warehouse provided, try to fetch a sensible default from Stock Settings
-        if not extra_values.get("custom_warehouse"):
-            try:
-                default_wh =  frappe.db.get_value("User Permission",{"user": user.name, "allow": "Warehouse", "is_default": 1}, "for_value")
-                if default_wh:
-                    extra_values["custom_warehouse"] = default_wh
-            except Exception:
-                pass
-
-        # If no custom_cost_center provided, try to fetch a sensible default from Stock Settings
-        if not extra_values.get("custom_cost_center"):
-            try:
-                default_cc =  frappe.db.get_value("User Permission", {"user": user.name, "allow": "Cost Center", "is_default": 1}, "for_value")
-                if default_cc:
-                    extra_values["custom_cost_center"] = default_cc
-            except Exception:
-                # ignore if Stock Settings not present
-                print('settings not found')
-                pass
-
-        # Set extra fields if they exist on the doctype
-        for key, val in extra_values.items():
-            if val is None:
-                continue
-            if key == "mobile_no":
-                if frappe.get_meta("Customer").has_field("mobile_no"):
-                    customer.mobile_no = val
-                continue
-            if frappe.get_meta("Customer").has_field(key):
-                setattr(customer, key, val)
+        customer.territory = (
+            frappe.db.get_single_value("Selling Settings", "territory")
+            or "All Territories"
+        )
 
         customer.insert(ignore_permissions=True)
 
         # Create contact with mobile number if provided
-        if mobile_no and isinstance(mobile_no, str) and mobile_no.strip():
-            try:
-                contact = frappe.new_doc("Contact")
-                contact.is_primary_contact = 1
-                contact.company_name = name_value
-                contact.append("links", {"link_doctype": "Customer", "link_name": customer.name})
-                contact.append("phone_nos", {"phone": mobile_no.strip(), "is_primary_mobile_no": 1})
-                contact.insert(ignore_permissions=True)
-                # Set the primary contact on customer
-                frappe.db.set_value("Customer", customer.name, "customer_primary_contact", contact.name)
-                frappe.db.set_value("Customer", customer.name, "mobile_no", mobile_no.strip())
-            except Exception:
-                # If contact insertion fails, continue (best-effort)
-                pass
-
-        # Process pets for newly created customer
-        created_pets = []
-        try:
-            pet_rows = frappe.parse_json(pets) if isinstance(pets, str) else (pets or [])
-            if pet_rows:
-                pet_meta = None
-                for pet in pet_rows:
-                    if not isinstance(pet, dict):
-                        continue
-                    try:
-                        if pet_meta is None:
-                            try:
-                                pet_meta = frappe.get_meta("Patient Name")
-                            except Exception:
-                                pet_meta = None
-
-                        if pet_meta:
-                            pet_doc = frappe.new_doc("Patient Name")
-                            mapping = {
-                                "patient_name": pet.get("patient_name"),
-                                "species": pet.get("species"),
-                                "sex": pet.get("sex"),
-                                "dob": pet.get("date_of_birth"),
-                                "breed": pet.get("breed"),
-                                "complaint": pet.get("complaint"),
-                                "patient_owner": customer.name,
-                            }
-                            for k, v in mapping.items():
-                                if v is None:
-                                    continue
-                                if k == "patient_owner" or pet_meta.has_field(k):
-                                    setattr(pet_doc, k, v)
-
-                            pet_doc.insert(ignore_permissions=True)
-                            created_pets.append(pet_doc.name)
-                    except Exception:
-                        frappe.log_error(frappe.get_traceback(), "Error creating Pet Details from create_customer")
-        except Exception:
-            created_pets = []
+        if mobile_no and mobile_no.strip():
+            contact = frappe.new_doc("Contact")
+            contact.is_primary_contact = 1
+            contact.company_name = customer_name.strip()
+            contact.append(
+                "links", {"link_doctype": "Customer", "link_name": customer.name}
+            )
+            contact.append(
+                "phone_nos", {"phone": mobile_no.strip(), "is_primary_mobile_no": 1}
+            )
+            contact.insert(ignore_permissions=True)
+            # Set the primary contact on customer
+            frappe.db.set_value(
+                "Customer", customer.name, "customer_primary_contact", contact.name
+            )
+            frappe.db.set_value(
+                "Customer", customer.name, "mobile_no", mobile_no.strip()
+            )
 
         frappe.db.commit()
 
-        return {"success": True, "message": "Customer created successfully", "customer": customer.name, "customer_name": customer.customer_name, "created_pets": created_pets}
+        return {
+            "success": True,
+            "message": "Customer created successfully",
+            "customer": customer.name,
+            "customer_name": customer.customer_name,
+        }
 
     except Exception as e:
         title = "Error creating customer"
         frappe.log_error(frappe.get_traceback(), title)
         return {"success": False, "message": "Failed to create customer", "details": str(e)}
 
+
 @frappe.whitelist()
 def get_agents():
     try:
-        agents = frappe.get_all("Agent", fields=["name", "full_name", "certificate_no", "qualification"])
+        agents = frappe.get_all(
+            "Agent", fields=["name", "full_name", "certificate_no", "qualification"]
+        )
         return {
             "success": True,
             "message": agents,
@@ -359,6 +303,7 @@ def get_agents():
             "details": str(e),
         }
 
+
 @frappe.whitelist()
 def create_agent(full_name, certificate_no=None, qualification=None):
     try:
@@ -368,10 +313,7 @@ def create_agent(full_name, certificate_no=None, qualification=None):
         agent.qualification = qualification
         agent.save(ignore_permissions=True)
         frappe.db.commit()
-        return {
-            "success": True,
-            "message": agent
-        }
+        return {"success": True, "message": agent}
     except Exception as e:
         title = "Error creating agent"
         frappe.log_error(frappe.get_traceback(), title)
@@ -380,6 +322,7 @@ def create_agent(full_name, certificate_no=None, qualification=None):
             "message": "Failed to create agent",
             "details": str(e),
         }
+
 
 @frappe.whitelist()
 def get_price_lists():
@@ -419,16 +362,14 @@ def search_items(search_term=None):
 
 
 @frappe.whitelist()
-def get_number_of_items(category=None):
-    """Get the number of items in a category"""
-    item_group = frappe.db.get_single_value("Sample Pos Settings", "menu_item_group")
-    if category:
+def get_number_of_items(item_group=None):
+    if item_group:
         return frappe.db.count(
             "Item",
-            {"disabled": 0, "item_group": item_group, "custom_menu_category": category},
+            {"disabled": 0, "item_group": item_group},
         )
     else:
-        return frappe.db.count("Item", {"disabled": 0, "item_group": item_group})
+        return frappe.db.count("Item", {"disabled": 0})
 
 
 @frappe.whitelist()
@@ -654,7 +595,9 @@ def create_order_and_payment(payload, amount=None, payment_method=None, note=Non
         items = []
         total = 0
         for item in payload.get("order_items", []):
-            item_code = item.get("name") or item.get("item_code") or item.get("item_name")
+            item_code = (
+                item.get("name") or item.get("item_code") or item.get("item_name")
+            )
             qty = item.get("quantity") or item.get("qty") or 1
             rate = item.get("price") or item.get("rate") or 0
             items.append({"item_code": item_code, "qty": qty, "rate": rate})
@@ -663,28 +606,38 @@ def create_order_and_payment(payload, amount=None, payment_method=None, note=Non
             except Exception:
                 total += 0
 
-        customer = payload.get("customer_name") or frappe.db.get_single_value(
-            "Sample Pos Settings", "default_dine_in_customer"
-        ) or ""
+        customer = (
+            payload.get("customer_name")
+            or frappe.db.get_single_value(
+                "Sample Pos Settings", "default_dine_in_customer"
+            )
+            or ""
+        )
 
         # 2) Create payment entry first
-        company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value(
-            "Global Defaults", "default_company"
-        )
+        company = frappe.defaults.get_user_default(
+            "Company"
+        ) or frappe.db.get_single_value("Global Defaults", "default_company")
         paid_amount = float(amount) if amount is not None else total
-        
+
         # Cap payment amount at total if it exceeds
         if paid_amount > total:
             paid_amount = total
         company_currency = frappe.get_value("Company", company, "default_currency")
-        paid_from_account = frappe.get_value("Company", company, "default_receivable_account")
-        paid_to_account = frappe.get_value("Company", company, "default_cash_account") or paid_from_account
+        paid_from_account = frappe.get_value(
+            "Company", company, "default_receivable_account"
+        )
+        paid_to_account = (
+            frappe.get_value("Company", company, "default_cash_account")
+            or paid_from_account
+        )
         if not paid_from_account or not paid_to_account:
             return {
                 "success": False,
                 "message": "Missing company accounts",
                 "details": "Company is missing default receivable or cash account. Please configure company defaults.",
             }
+
         def get_account_currency(account, default_currency):
             if not account:
                 return default_currency
@@ -693,6 +646,7 @@ def create_order_and_payment(payload, amount=None, payment_method=None, note=Non
                 return acc_currency or default_currency
             except Exception:
                 return default_currency
+
         paid_from_currency = get_account_currency(paid_from_account, company_currency)
         paid_to_currency = get_account_currency(paid_to_account, company_currency)
         source_exchange_rate = 1.0
@@ -701,6 +655,7 @@ def create_order_and_payment(payload, amount=None, payment_method=None, note=Non
         if paid_from_currency != paid_to_currency:
             try:
                 from erpnext.setup.utils import get_exchange_rate
+
                 target_exchange_rate = get_exchange_rate(
                     paid_from_currency, paid_to_currency, frappe.utils.nowdate()
                 )
@@ -708,7 +663,7 @@ def create_order_and_payment(payload, amount=None, payment_method=None, note=Non
             except Exception as e:
                 frappe.log_error(
                     f"Could not get exchange rate for {paid_from_currency} -> {paid_to_currency}: {str(e)}",
-                    "Payment Entry Exchange Rate"
+                    "Payment Entry Exchange Rate",
                 )
                 target_exchange_rate = 1.0
                 received_amount = paid_amount
@@ -749,10 +704,12 @@ def create_order_and_payment(payload, amount=None, payment_method=None, note=Non
 
         # 3) Only if payment entry succeeded, create HA Order and Sales Invoice
         try:
+
             def safe(value):
                 if not value:
                     return ""
                 return str(value)[:140]
+
             order = frappe.new_doc("HA Order")
             order.order_type = safe(payload.get("order_type"))
             order.customer_name = safe(payload.get("customer_name"))
@@ -766,7 +723,8 @@ def create_order_and_payment(payload, amount=None, payment_method=None, note=Non
                         "menu_item": safe(item.get("name")),
                         "qty": item.get("quantity"),
                         "rate": item.get("price"),
-                        "amount": (item.get("price") or 0) * (item.get("quantity") or 0),
+                        "amount": (item.get("price") or 0)
+                        * (item.get("quantity") or 0),
                         "preparation_remark": safe(item.get("remark")),
                     },
                 )
@@ -783,6 +741,7 @@ def create_order_and_payment(payload, amount=None, payment_method=None, note=Non
             from havano_restaurant_pos.havano_restaurant_pos.doctype.ha_pos_invoice.ha_pos_invoice import (
                 create_sales_invoice,
             )
+
             inv = create_sales_invoice(customer, items)
             return {
                 "success": True,
@@ -813,52 +772,52 @@ def create_order_and_payment(payload, amount=None, payment_method=None, note=Non
 @frappe.whitelist()
 def convert_quotation_to_sales_invoice(quotation_name):
     """Convert a Quotation to Sales Invoice.
-    
+
     Args:
         quotation_name: Name of the Quotation to convert
     """
     try:
         # Check if quotation exists and is submitted
         quotation = frappe.get_doc("Quotation", quotation_name)
-        
+
         if quotation.docstatus != 1:
             return {
                 "success": False,
                 "message": "Quotation must be submitted before converting to Sales Invoice",
             }
-        
+
         # Check if already converted
         existing_invoice = frappe.get_all(
             "Sales Invoice",
             filters={"quotation_no": quotation_name},
             fields=["name"],
-            limit=1
+            limit=1,
         )
-        
+
         if existing_invoice:
             return {
                 "success": True,
                 "message": "Quotation already converted to Sales Invoice",
                 "sales_invoice": existing_invoice[0].name,
             }
-        
+
         # Import the conversion function
         from erpnext.selling.doctype.quotation.quotation import make_sales_invoice
-        
+
         # Convert quotation to sales invoice
         sales_invoice = make_sales_invoice(quotation_name)
-        
+
         # Save and submit the sales invoice
         sales_invoice.insert(ignore_permissions=True)
         sales_invoice.submit()
         frappe.db.commit()
-        
+
         return {
             "success": True,
             "message": "Quotation converted to Sales Invoice successfully",
             "sales_invoice": sales_invoice.name,
         }
-    
+
     except Exception as e:
         title = "Error converting Quotation to Sales Invoice"
         frappe.log_error(frappe.get_traceback(), title)
@@ -870,9 +829,17 @@ def convert_quotation_to_sales_invoice(quotation_name):
 
 
 @frappe.whitelist()
-def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer, order_type=None, table=None, waiter=None, customer_name=None):
+def convert_quotation_to_sales_invoice_from_cart(
+    quotation_name,
+    items,
+    customer,
+    order_type=None,
+    table=None,
+    waiter=None,
+    customer_name=None,
+):
     """Update quotation with new items (if changed), convert to Sales Invoice, create payment and HA Order.
-    
+
     Args:
         quotation_name: Name of the Quotation
         items: List of items with item_code, qty, rate
@@ -886,27 +853,28 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
         # Parse items if it's a JSON string
         if isinstance(items, str):
             import json
+
             items = frappe.parse_json(items)
-        
+
         # Validate inputs
         if not quotation_name:
             return {
                 "success": False,
                 "message": "Quotation name is required",
             }
-        
+
         if not items or not isinstance(items, (list, tuple)):
             return {
                 "success": False,
                 "message": "Items list is required and must be a list",
             }
-        
+
         if not customer:
             return {
                 "success": False,
                 "message": "Customer is required",
             }
-        
+
         # Validate quotation exists
         if not frappe.db.exists("Quotation", quotation_name):
             return {
@@ -914,18 +882,18 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
                 "message": "Quotation not found",
                 "details": f"Quotation {quotation_name} does not exist",
             }
-        
+
         # Initialize variables
         items_changed = False
         sales_invoice_name = None
-        
+
         # Note: We don't check for existing conversions here because ERPNext doesn't
         # store a direct quotation_no field in Sales Invoice. We'll proceed with conversion
         # and handle any issues through error handling.
-        
+
         # Get the quotation
         quotation = frappe.get_doc("Quotation", quotation_name)
-        
+
         # Validate quotation state
         if quotation.status == "Lost":
             return {
@@ -933,7 +901,7 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
                 "message": "Cannot convert a Lost quotation to Sales Invoice",
                 "details": f"Quotation {quotation_name} has status 'Lost'",
             }
-        
+
         # Check if items have changed by comparing current items with quotation items
         current_items = set()
         for item in items:
@@ -946,14 +914,16 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
                 current_items.add((item_code, qty, rate))
             except (ValueError, TypeError):
                 continue  # Skip invalid items
-        
+
         quotation_items = set()
         for item in quotation.items:
             if item.item_code:
-                quotation_items.add((item.item_code, float(item.qty or 1), float(item.rate or 0)))
-        
+                quotation_items.add(
+                    (item.item_code, float(item.qty or 1), float(item.rate or 0))
+                )
+
         items_changed = current_items != quotation_items
-        
+
         # Update quotation if items changed
         if items_changed:
             # If quotation is submitted, cancel it first to allow modification
@@ -965,7 +935,9 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
                     quotation = frappe.get_doc("Quotation", quotation_name)
                 except Exception as cancel_err:
                     # If cancel fails, try to proceed anyway (might be draft)
-                    frappe.log_error(f"Warning: Could not cancel quotation: {frappe.get_traceback()}")
+                    frappe.log_error(
+                        f"Warning: Could not cancel quotation: {frappe.get_traceback()}"
+                    )
                     if quotation.docstatus == 1:
                         # If still submitted and can't cancel, we can't update
                         return {
@@ -973,14 +945,14 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
                             "message": "Cannot update quotation. It may be linked to other documents or already converted.",
                             "details": str(cancel_err),
                         }
-            
+
             # Clear and update items
             quotation.items = []
             for item in items:
                 item_code = item.get("item_code") or item.get("name")
                 if not item_code:
                     continue  # Skip items without item_code
-                
+
                 # Validate item exists
                 if not frappe.db.exists("Item", item_code):
                     return {
@@ -988,7 +960,7 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
                         "message": f"Item {item_code} does not exist",
                         "details": f"Please check that item {item_code} exists in the system",
                     }
-                
+
                 try:
                     qty = float(item.get("qty") or item.get("quantity") or 1)
                     rate = float(item.get("rate") or item.get("price") or 0)
@@ -998,18 +970,21 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
                         "message": f"Invalid quantity or rate for item {item_code}",
                         "details": f"Quantity: {item.get('qty')}, Rate: {item.get('rate')}",
                     }
-                
-                quotation.append("items", {
-                    "item_code": item_code,
-                    "qty": qty,
-                    "rate": rate,
-                })
-            
+
+                quotation.append(
+                    "items",
+                    {
+                        "item_code": item_code,
+                        "qty": qty,
+                        "rate": rate,
+                    },
+                )
+
             quotation.set_missing_values()
             quotation.calculate_taxes_and_totals()
             quotation.save(ignore_permissions=True)
             frappe.db.commit()
-        
+
         # Ensure quotation is submitted
         if quotation.docstatus != 1:
             try:
@@ -1018,17 +993,20 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
             except Exception as submit_quotation_err:
                 error_msg = str(submit_quotation_err)
                 error_type = type(submit_quotation_err).__name__
-                frappe.log_error(f"Quotation submit error: {frappe.get_traceback()}", "Quotation Submit Error")
+                frappe.log_error(
+                    f"Quotation submit error: {frappe.get_traceback()}",
+                    "Quotation Submit Error",
+                )
                 return {
                     "success": False,
                     "message": f"Failed to submit quotation: {error_msg}",
                     "details": error_msg,
                     "error_type": error_type,
                 }
-        
+
         # Import the conversion function
         from erpnext.selling.doctype.quotation.quotation import make_sales_invoice
-        
+
         # Convert quotation to sales invoice
         try:
             sales_invoice = make_sales_invoice(quotation_name)
@@ -1041,14 +1019,16 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
         except Exception as convert_err:
             error_msg = str(convert_err)
             error_type = type(convert_err).__name__
-            frappe.log_error(f"Conversion error: {frappe.get_traceback()}", "Convert Quotation Error")
+            frappe.log_error(
+                f"Conversion error: {frappe.get_traceback()}", "Convert Quotation Error"
+            )
             return {
                 "success": False,
                 "message": f"Failed to convert quotation to sales invoice: {error_msg}",
                 "details": error_msg,
                 "error_type": error_type,
             }
-        
+
         # Save and submit the sales invoice
         try:
             sales_invoice.insert(ignore_permissions=True)
@@ -1056,14 +1036,16 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
         except Exception as insert_err:
             error_msg = str(insert_err)
             error_type = type(insert_err).__name__
-            frappe.log_error(f"Insert error: {frappe.get_traceback()}", "Sales Invoice Insert Error")
+            frappe.log_error(
+                f"Insert error: {frappe.get_traceback()}", "Sales Invoice Insert Error"
+            )
             return {
                 "success": False,
                 "message": f"Failed to save sales invoice: {error_msg}",
                 "details": error_msg,
                 "error_type": error_type,
             }
-        
+
         try:
             sales_invoice.submit()
             frappe.db.commit()
@@ -1071,9 +1053,13 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
         except Exception as submit_err:
             error_msg = str(submit_err)
             error_type = type(submit_err).__name__
-            frappe.log_error(f"Submit error: {frappe.get_traceback()}", "Sales Invoice Submit Error")
+            frappe.log_error(
+                f"Submit error: {frappe.get_traceback()}", "Sales Invoice Submit Error"
+            )
             # Try to get the invoice name even if submit failed
-            sales_invoice_name = sales_invoice.name if hasattr(sales_invoice, 'name') else None
+            sales_invoice_name = (
+                sales_invoice.name if hasattr(sales_invoice, "name") else None
+            )
             return {
                 "success": False,
                 "message": f"Failed to submit sales invoice: {error_msg}",
@@ -1081,13 +1067,13 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
                 "error_type": error_type,
                 "sales_invoice": sales_invoice_name,  # Return invoice name if it was created
             }
-        
+
         # Create HA Order
         def safe(value):
             if not value:
                 return ""
             return str(value)[:140]
-        
+
         try:
             ha_order = frappe.new_doc("HA Order")
             ha_order.order_type = safe(order_type) or "Take Away"
@@ -1096,7 +1082,7 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
             ha_order.waiter = safe(waiter) or ""
             ha_order.payment_status = "Unpaid"
             ha_order.sales_invoice = sales_invoice_name
-            
+
             # Add items to HA Order
             for item in items:
                 item_code = item.get("item_code") or item.get("name")
@@ -1108,17 +1094,20 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
                 except (ValueError, TypeError):
                     qty = 1
                     rate = 0
-                
-                ha_order.append("order_items", {
-                    "menu_item": safe(item_code),
-                    "qty": qty,
-                    "rate": rate,
-                    "amount": qty * rate,
-                })
-            
+
+                ha_order.append(
+                    "order_items",
+                    {
+                        "menu_item": safe(item_code),
+                        "qty": qty,
+                        "rate": rate,
+                        "amount": qty * rate,
+                    },
+                )
+
             ha_order.save(ignore_permissions=True)
             ha_order_id = ha_order.name
-            
+
             # Update table if Dine In
             if table and ha_order.order_type == "Dine In":
                 try:
@@ -1128,9 +1117,9 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
                     table_doc.save(ignore_permissions=True)
                 except Exception as e:
                     frappe.log_error(f"Error updating table: {frappe.get_traceback()}")
-            
+
             frappe.db.commit()
-            
+
             return {
                 "success": True,
                 "message": "Quotation converted to Sales Invoice successfully",
@@ -1145,23 +1134,23 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
                 "message": "Failed to create HA Order",
                 "details": f"HA Order creation error: {str(ha_order_err)}",
             }
-    
+
     except Exception as e:
         title = "Error converting Quotation to Sales Invoice from Cart"
         error_traceback = frappe.get_traceback()
         frappe.log_error(error_traceback, title)
-        
+
         # Get the full error information
         error_message = str(e)
         error_type = type(e).__name__
         error_lower = error_message.lower()
-        
+
         # Log to console for debugging
         frappe.errprint(f"ERROR in convert_quotation_to_sales_invoice_from_cart:")
         frappe.errprint(f"  Type: {error_type}")
         frappe.errprint(f"  Message: {error_message}")
         frappe.errprint(f"  Traceback: {error_traceback}")
-        
+
         # Provide more specific error messages
         if "cannot cancel" in error_lower or "already cancelled" in error_lower:
             return {
@@ -1170,14 +1159,22 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
                 "details": error_message,
                 "error_type": error_type,
             }
-        elif "docstatus" in error_lower or "submitted" in error_lower or "not draft" in error_lower:
+        elif (
+            "docstatus" in error_lower
+            or "submitted" in error_lower
+            or "not draft" in error_lower
+        ):
             return {
                 "success": False,
                 "message": "Quotation cannot be modified. Please check if it's already converted or has dependencies.",
                 "details": error_message,
                 "error_type": error_type,
             }
-        elif "validation" in error_lower or "mandatory" in error_lower or "required" in error_lower:
+        elif (
+            "validation" in error_lower
+            or "mandatory" in error_lower
+            or "required" in error_lower
+        ):
             return {
                 "success": False,
                 "message": "Validation error. Please check all required fields are filled.",
@@ -1203,10 +1200,20 @@ def convert_quotation_to_sales_invoice_from_cart(quotation_name, items, customer
 
 
 @frappe.whitelist()
-def create_transaction(doctype, customer, items, company=None, order_type=None, table=None, waiter=None, customer_name=None, agent=None):
+def create_transaction(
+    doctype,
+    customer,
+    items,
+    company=None,
+    order_type=None,
+    table=None,
+    waiter=None,
+    customer_name=None,
+    agent=None,
+):
     """Create a Sales Invoice or Quotation from items.
     Also creates HA Order for Sales Invoice.
-    
+
     Args:
         doctype: "Sales Invoice" or "Quotation"
         customer: Customer name (Customer ID)
@@ -1223,66 +1230,69 @@ def create_transaction(doctype, customer, items, company=None, order_type=None, 
                 "success": False,
                 "message": f"Invalid doctype: {doctype}. Must be 'Sales Invoice' or 'Quotation'",
             }
-        
+
         if not customer:
             return {
                 "success": False,
                 "message": "Customer is required",
             }
-        
+
         if not items or len(items) == 0:
             return {
                 "success": False,
                 "message": "At least one item is required",
             }
-        
+
         # Get company
         if not company:
-            company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value(
-                "Global Defaults", "default_company"
-            )
-        
+            company = frappe.defaults.get_user_default(
+                "Company"
+            ) or frappe.db.get_single_value("Global Defaults", "default_company")
+
         if not company:
             return {
                 "success": False,
                 "message": "Company is required. Please set a default company.",
             }
-        
+
         # Create the document
         doc = frappe.new_doc(doctype)
         doc.customer = customer
         doc.company = company
-        
+
         # For Quotation, set quotation_to and transaction_date
         if doctype == "Quotation":
             doc.quotation_to = "Customer"
             doc.party_name = customer
             doc.transaction_date = frappe.utils.today()
-        
+
         # For Sales Invoice, set posting_date
         if doctype == "Sales Invoice":
             doc.posting_date = frappe.utils.today()
             doc.custom_agent = agent if agent else ""
-        
+
         # Add items
         for item in items:
             item_code = item.get("item_code") or item.get("name")
             qty = float(item.get("qty") or item.get("quantity") or 1)
             rate = float(item.get("rate") or item.get("price") or 0)
-            
-            doc.append("items", {
-                "item_code": item_code,
-                "qty": qty,
-                "rate": rate,
-            })
-        
+
+            doc.append(
+                "items",
+                {
+                    "item_code": item_code,
+                    "qty": qty,
+                    "rate": rate,
+                },
+            )
+
         # Set missing values and calculate totals
         doc.set_missing_values()
         doc.calculate_taxes_and_totals()
-        
+
         # Save the document
         doc.insert(ignore_permissions=True)
-        
+
         # For Sales Invoice, create HA Order and submit invoice
         ha_order_id = None
         if doctype == "Sales Invoice":
@@ -1291,7 +1301,7 @@ def create_transaction(doctype, customer, items, company=None, order_type=None, 
                 if not value:
                     return ""
                 return str(value)[:140]
-            
+
             ha_order = frappe.new_doc("HA Order")
             ha_order.order_type = safe(order_type) or "Take Away"
             ha_order.customer_name = safe(customer_name) or customer
@@ -1299,26 +1309,29 @@ def create_transaction(doctype, customer, items, company=None, order_type=None, 
             ha_order.waiter = safe(waiter) or ""
             ha_order.payment_status = "Unpaid"
             ha_order.sales_invoice = doc.name  # Link to Sales Invoice
-            
+
             # Add items to HA Order
             for item in items:
                 item_code = item.get("item_code") or item.get("name")
                 qty = float(item.get("qty") or item.get("quantity") or 1)
                 rate = float(item.get("rate") or item.get("price") or 0)
-                
-                ha_order.append("order_items", {
-                    "menu_item": safe(item_code),
-                    "qty": qty,
-                    "rate": rate,
-                    "amount": qty * rate,
-                })
-            
+
+                ha_order.append(
+                    "order_items",
+                    {
+                        "menu_item": safe(item_code),
+                        "qty": qty,
+                        "rate": rate,
+                        "amount": qty * rate,
+                    },
+                )
+
             ha_order.save(ignore_permissions=True)
             ha_order_id = ha_order.name
-            
+
             # Submit Sales Invoice
             doc.submit()
-            
+
             # Update table if Dine In
             if table and ha_order.order_type == "Dine In":
                 try:
@@ -1328,16 +1341,16 @@ def create_transaction(doctype, customer, items, company=None, order_type=None, 
                     table_doc.save(ignore_permissions=True)
                 except Exception as e:
                     frappe.log_error(f"Error updating table: {frappe.get_traceback()}")
-        
+
         frappe.db.commit()
-        
+
         return {
             "success": True,
             "message": f"{doctype} created successfully",
             "name": doc.name,
             "order_id": ha_order_id,  # Return HA Order ID if created
         }
-    
+
     except Exception as e:
         title = f"Error creating {doctype}"
         frappe.log_error(frappe.get_traceback(), title)
@@ -1349,9 +1362,16 @@ def create_transaction(doctype, customer, items, company=None, order_type=None, 
 
 
 @frappe.whitelist()
-def make_payment_for_transaction(doctype, docname, amount=None, payment_method=None, note=None, payment_breakdown=None):
+def make_payment_for_transaction(
+    doctype,
+    docname,
+    amount=None,
+    payment_method=None,
+    note=None,
+    payment_breakdown=None,
+):
     """Make payment for an existing Sales Invoice or Quotation.
-    
+
     Args:
         doctype: "Sales Invoice" or "Quotation"
         docname: Name of the Sales Invoice or Quotation
@@ -1363,7 +1383,7 @@ def make_payment_for_transaction(doctype, docname, amount=None, payment_method=N
     try:
         # Get the document
         doc = frappe.get_doc(doctype, docname)
-        
+
         # For Quotation, we need to convert it to Sales Invoice first
         if doctype == "Quotation":
             # Check if quotation has been converted to Sales Invoice
@@ -1371,7 +1391,7 @@ def make_payment_for_transaction(doctype, docname, amount=None, payment_method=N
                 "Sales Invoice",
                 filters={"quotation_no": docname},
                 fields=["name"],
-                limit=1
+                limit=1,
             )
             if linked_invoices:
                 # Use the linked Sales Invoice
@@ -1383,31 +1403,37 @@ def make_payment_for_transaction(doctype, docname, amount=None, payment_method=N
                     "success": False,
                     "message": "Quotation must be converted to Sales Invoice before payment. Please use the Edit button to convert it first.",
                 }
-        
+
         # Get company and customer info
         company = doc.company
         customer = doc.customer
-        
+
         if not customer:
             return {
                 "success": False,
                 "message": "Customer not found in document",
             }
-        
+
         # Calculate outstanding amount
-        outstanding_amount = doc.outstanding_amount if hasattr(doc, 'outstanding_amount') else doc.grand_total
-        
+        outstanding_amount = (
+            doc.outstanding_amount
+            if hasattr(doc, "outstanding_amount")
+            else doc.grand_total
+        )
+
         # Parse payment breakdown if provided, or parse from note if payment_method is "Multi"
         payments_list = []
         if payment_breakdown:
             if isinstance(payment_breakdown, str):
                 import json
+
                 payment_breakdown = frappe.parse_json(payment_breakdown)
             payments_list = payment_breakdown
         elif payment_method == "Multi" and note:
             # Parse payment breakdown from note (format: "Cash:50, Card:30")
             import re
-            breakdown_pattern = r'([^:]+):([0-9.]+)'
+
+            breakdown_pattern = r"([^:]+):([0-9.]+)"
             matches = re.findall(breakdown_pattern, note)
             for method, amt in matches:
                 method = method.strip()
@@ -1417,7 +1443,7 @@ def make_payment_for_transaction(doctype, docname, amount=None, payment_method=N
                         payments_list.append({"payment_method": method, "amount": amt})
                 except (ValueError, TypeError):
                     continue
-        
+
         # If we have multiple payments, use breakdown; otherwise use single payment
         if payments_list and len(payments_list) > 0:
             # Multiple payment methods - create separate payment entries
@@ -1430,35 +1456,47 @@ def make_payment_for_transaction(doctype, docname, amount=None, payment_method=N
                 total_paid = float(outstanding_amount)
         else:
             # Single payment method
-            paid_amount = float(amount) if amount is not None else float(outstanding_amount)
+            paid_amount = (
+                float(amount) if amount is not None else float(outstanding_amount)
+            )
             # Cap payment amount at outstanding amount if it exceeds
             if paid_amount > float(outstanding_amount):
                 paid_amount = float(outstanding_amount)
-            
+
             # Handle "Multi" payment method - use Cash as fallback
             if payment_method == "Multi":
                 payment_method = "Cash"
-            
-            payments_list = [{"payment_method": payment_method or "Cash", "amount": paid_amount}]
-        
-        if not payments_list or sum(float(p.get("amount", 0)) for p in payments_list) <= 0:
+
+            payments_list = [
+                {"payment_method": payment_method or "Cash", "amount": paid_amount}
+            ]
+
+        if (
+            not payments_list
+            or sum(float(p.get("amount", 0)) for p in payments_list) <= 0
+        ):
             return {
                 "success": False,
                 "message": "Payment amount must be greater than 0",
             }
-        
+
         # Get company accounts
         company_currency = frappe.get_value("Company", company, "default_currency")
-        paid_from_account = frappe.get_value("Company", company, "default_receivable_account")
-        paid_to_account = frappe.get_value("Company", company, "default_cash_account") or paid_from_account
-        
+        paid_from_account = frappe.get_value(
+            "Company", company, "default_receivable_account"
+        )
+        paid_to_account = (
+            frappe.get_value("Company", company, "default_cash_account")
+            or paid_from_account
+        )
+
         if not paid_from_account or not paid_to_account:
             return {
                 "success": False,
                 "message": "Missing company accounts",
                 "details": "Company is missing default receivable or cash account. Please configure company defaults.",
             }
-        
+
         def get_account_currency(account, default_currency):
             if not account:
                 return default_currency
@@ -1467,35 +1505,36 @@ def make_payment_for_transaction(doctype, docname, amount=None, payment_method=N
                 return acc_currency or default_currency
             except Exception:
                 return default_currency
-        
+
         paid_from_currency = get_account_currency(paid_from_account, company_currency)
         paid_to_currency = get_account_currency(paid_to_account, company_currency)
-        
+
         # Create payment entries for each payment method
         created_payments = []
         remaining_outstanding = float(outstanding_amount)
-        
+
         for payment_info in payments_list:
             method = payment_info.get("payment_method", "Cash")
             paid_amount = float(payment_info.get("amount", 0))
-            
+
             if paid_amount <= 0:
                 continue
-            
+
             # Cap individual payment at remaining outstanding
             if paid_amount > remaining_outstanding:
                 paid_amount = remaining_outstanding
-            
+
             if paid_amount <= 0:
                 continue
-            
+
             source_exchange_rate = 1.0
             target_exchange_rate = 1.0
             received_amount = paid_amount
-            
+
             if paid_from_currency != paid_to_currency:
                 try:
                     from erpnext.setup.utils import get_exchange_rate
+
                     target_exchange_rate = get_exchange_rate(
                         paid_from_currency, paid_to_currency, frappe.utils.nowdate()
                     )
@@ -1503,11 +1542,11 @@ def make_payment_for_transaction(doctype, docname, amount=None, payment_method=N
                 except Exception as e:
                     frappe.log_error(
                         f"Could not get exchange rate for {paid_from_currency} -> {paid_to_currency}: {str(e)}",
-                        "Payment Entry Exchange Rate"
+                        "Payment Entry Exchange Rate",
                     )
                     target_exchange_rate = 1.0
                     received_amount = paid_amount
-            
+
             # Create payment entry
             try:
                 payment_entry = frappe.new_doc("Payment Entry")
@@ -1526,9 +1565,11 @@ def make_payment_for_transaction(doctype, docname, amount=None, payment_method=N
                 payment_entry.target_exchange_rate = target_exchange_rate
                 payment_entry.reference_no = None
                 payment_entry.reference_date = frappe.utils.nowdate()
-                payment_entry.remarks = note or f"Payment for {doctype} {docname} - {method}"
+                payment_entry.remarks = (
+                    note or f"Payment for {doctype} {docname} - {method}"
+                )
                 payment_entry.mode_of_payment = method
-                
+
                 # Add reference to the Sales Invoice
                 payment_entry.append(
                     "references",
@@ -1538,35 +1579,37 @@ def make_payment_for_transaction(doctype, docname, amount=None, payment_method=N
                         "allocated_amount": paid_amount,
                     },
                 )
-                
+
                 payment_entry.insert(ignore_permissions=True)
                 payment_entry.submit()
                 created_payments.append(payment_entry.name)
                 remaining_outstanding -= paid_amount
-                
+
             except Exception as e:
                 title = f"Error creating payment entry for {method}"
                 frappe.log_error(frappe.get_traceback(), title)
                 # Continue with other payment methods even if one fails
                 continue
-        
+
         frappe.db.commit()
-        
+
         if not created_payments:
             return {
                 "success": False,
                 "message": "Failed to create payment entries",
                 "details": "No payment entries were created. Please check payment methods and amounts.",
             }
-        
+
         return {
             "success": True,
             "message": f"Payment created successfully for {doctype} {docname}",
-            "payment_entry": created_payments[0] if len(created_payments) == 1 else created_payments,
+            "payment_entry": (
+                created_payments[0] if len(created_payments) == 1 else created_payments
+            ),
             "payment_entries": created_payments,
             "transaction": docname,
         }
-    
+
     except Exception as e:
         title = "Error in make_payment_for_transaction"
         frappe.log_error(frappe.get_traceback(), title)
@@ -1587,16 +1630,22 @@ def get_invoice_json(invoice_name):
         # Build item list
         items = []
         for item in invoice.items:
-            items.append({
-                "ProductName": item.item_name,
-                "productid": item.item_code,
-                "Qty": flt(item.qty),
-                "Price": flt(item.rate),
-                "Amount": flt(item.amount),
-                "tax_type": item.tax_type if hasattr(item, "tax_type") else "VAT",
-                "tax_rate": str(item.tax_rate) if hasattr(item, "tax_rate") else "15.0",
-                "tax_amount": str(item.tax_amount) if hasattr(item, "tax_amount") else "0.00"
-            })
+            items.append(
+                {
+                    "ProductName": item.item_name,
+                    "productid": item.item_code,
+                    "Qty": flt(item.qty),
+                    "Price": flt(item.rate),
+                    "Amount": flt(item.amount),
+                    "tax_type": item.tax_type if hasattr(item, "tax_type") else "VAT",
+                    "tax_rate": (
+                        str(item.tax_rate) if hasattr(item, "tax_rate") else "15.0"
+                    ),
+                    "tax_amount": (
+                        str(item.tax_amount) if hasattr(item, "tax_amount") else "0.00"
+                    ),
+                }
+            )
 
         data = {
             "CompanyName": company.company_name,
@@ -1610,7 +1659,7 @@ def get_invoice_json(invoice_name):
             "VATNo": company.vat or "",
             "Tel": company.phone or "",
             "InvoiceNo": invoice.name,
-            "InvoiceDate":str(invoice.creation),
+            "InvoiceDate": str(invoice.creation),
             "CashierName": invoice.owner,
             "CustomerName": invoice.customer_name,
             "CustomerContact": invoice.contact_display or invoice.customer_name,
@@ -1625,10 +1674,7 @@ def get_invoice_json(invoice_name):
             "Currency": invoice.currency,
             "Footer": "Thank you for your purchase!",
             "MultiCurrencyDetails": [
-                {
-                    "Key": invoice.currency,
-                    "Value": flt(invoice.grand_total)
-                }
+                {"Key": invoice.currency, "Value": flt(invoice.grand_total)}
             ],
             "DeviceID": getattr(invoice, "device_id", "None"),
             "DeviceSerial": getattr(invoice, "device_serial", ""),
@@ -1642,7 +1688,7 @@ def get_invoice_json(invoice_name):
             "TotalVat": str(flt(invoice.total_taxes_and_charges)),
             "GrandTotal": flt(invoice.grand_total),
             "TaxType": "Standard VAT",
-            "PaymentMode": invoice.payment_terms_template or "Cash"
+            "PaymentMode": invoice.payment_terms_template or "Cash",
         }
         print(data)
 
@@ -1660,9 +1706,9 @@ def generate_quotation_json(quote_id):
     quote = frappe.get_doc("Quotation", quote_id)
 
     # --- Get Company Info ---
-    company_name = frappe.db.get_single_value('Global Defaults', 'default_company')
+    company_name = frappe.db.get_single_value("Global Defaults", "default_company")
     company = frappe.get_doc("Company", company_name)
-    currency = frappe.db.get_value('Company', company, 'default_currency')
+    currency = frappe.db.get_value("Company", company, "default_currency")
     # --- Get Customer Info (custom doctype linked by customer name) ---
     customer_doc = frappe.get_doc("Customer", quote.customer_name)
 
@@ -1673,8 +1719,13 @@ def generate_quotation_json(quote_id):
     items = frappe.get_all(
         "Quotation Item",
         filters={"parent": quote.name},
-        fields=["item_name as ProductName", "item_code as productid", "qty as Qty",
-                "rate as Price", "amount as Amount"]
+        fields=[
+            "item_name as ProductName",
+            "item_code as productid",
+            "qty as Qty",
+            "rate as Price",
+            "amount as Amount",
+        ],
     )
     # print(items)
     # , "vat as vat"
@@ -1684,8 +1735,8 @@ def generate_quotation_json(quote_id):
         # -------- Get Item Tax Category from Item Doctype -------
         tax_category = frappe.db.get_value(
             "Item Tax",
-            {"parent": item_code},   # filter by parent (item_code)
-            "tax_category"
+            {"parent": item_code},  # filter by parent (item_code)
+            "tax_category",
         )
         tax_rate = 0
         tax_amount = 0
@@ -1695,15 +1746,13 @@ def generate_quotation_json(quote_id):
         if tax_category == "VAT":
             # Fetch the Item Tax record for VAT
             tax_info = frappe.get_all(
-                "Item Tax",
-                filters={"parent": item_code},
-                fields=["maximum_net_rate"]
+                "Item Tax", filters={"parent": item_code}, fields=["maximum_net_rate"]
             )
             if tax_info:
                 tax_rate = tax_info[0].maximum_net_rate or 0
 
             # -------- Calculate tax amount --------
-            tax_amount = (tax_rate/100) *  item.get("Amount", 0)
+            tax_amount = (tax_rate / 100) * item.get("Amount", 0)
             tax_amount = float(f"{tax_amount:.2f}")
 
         # Add new fields to item
@@ -1716,7 +1765,7 @@ def generate_quotation_json(quote_id):
     # Format to yyyy-MM-dd
     formatted_date = dt.strftime("%Y-%m-%d")
     data = {
-        "doc_type":"Quote",
+        "doc_type": "Quote",
         "CompanyName": company.company_name,
         "CompanyAddress": company.custom_company_email or "",
         "City": company.city or "",
@@ -1727,28 +1776,21 @@ def generate_quotation_json(quote_id):
         "TIN": company.custom_tin or "",
         "VATNo": company.vat or "",
         "Tel": company.custom_contact_number or "",
-
         "InvoiceNo": quote.name,
         "InvoiceDate": str(formatted_date),
         "CashierName": cashier_name,
-
         "CustomerName": customer_doc.customer_name,
-        "CustomerContact": customer_doc.customer_name,   # You may adjust if you have a field for contact
+        "CustomerContact": customer_doc.customer_name,  # You may adjust if you have a field for contact
         "CustomerTradeName": getattr(customer_doc, "trade_name", None),
         "CustomerEmail": getattr(customer_doc, "email_id", None),
         "CustomerTIN": getattr(customer_doc, "tin", None),
         "CustomerVAT": getattr(customer_doc, "vat", None),
         "Customeraddress": getattr(customer_doc, "customer_address", None),
-
         "itemlist": items,
-
         "AmountTendered": str(quote.grand_total or "0"),
-        "Change":  "0",
+        "Change": "0",
         "Currency": currency or "USD",
         "Footer": "Thank you for your support!",
-
-
-
         "DiscAmt": "0.0",
         "Subtotal": quote.grand_total,
         "TotalVat": "0.00",
@@ -1814,6 +1856,7 @@ def create_product_bundle(new_item, price, items):
         "message": str(e) or "Failed to create product bundle",
     }
 
+
 @frappe.whitelist()
 def save_item_preparation_remark(item, remark):
     try:
@@ -1871,43 +1914,112 @@ def save_item_preparation_remark(item, remark):
 def get_item_preparation_remarks(item):
     try:
         if not item:
-            return {
-                "success": False,
-                "remarks": [],
-                "error": "Item is required"
-            }
+            return {"success": False, "remarks": [], "error": "Item is required"}
 
         if not frappe.db.exists("Item", item):
             return {
                 "success": False,
                 "remarks": [],
-                "error": f"Item '{item}' does not exist"
+                "error": f"Item '{item}' does not exist",
             }
 
         item_doc = frappe.get_doc("Item", item)
-        
+
         prep_remarks = frappe.get_all("Preparation Remark", pluck="remark")
 
         remarks = [
-            row.remark
-            for row in item_doc.custom_preparation_remark
-            if row.remark
+            row.remark for row in item_doc.custom_preparation_remark if row.remark
         ]
 
-        return {
-            "success": True,
-            "remarks": remarks,
-            "prep_remarks": prep_remarks
-        }
+        return {"success": True, "remarks": remarks, "prep_remarks": prep_remarks}
 
     except Exception as e:
         frappe.log_error(
-            title="Get Item Preparation Remarks Failed",
-            message=frappe.get_traceback()
+            title="Get Item Preparation Remarks Failed", message=frappe.get_traceback()
         )
+
+        return {"success": False, "remarks": [], "error": str(e)}
+
+
+@frappe.whitelist()
+def make_multi_currency_payment(customer, payments):
+    if not customer:
+        customer = get_default_customer()
+        
+    system_currency = frappe.get_single_value("System Settings", "currency")
+    currency_exchange = frappe.get_all(
+        "Currency Exchange", fields=["from_currency", "to_currency", "exchange_rate"],
+        filters={"from_currency": system_currency},
+    )
+    exchange_rates = {ce["to_currency"]: ce["exchange_rate"] for ce in currency_exchange}
+    exchange_rates[system_currency] = 1.0
+
+    unavailable_accounts = []
+    accounts = {}
+
+    try:
+        for currency in payments.keys():
+            account = frappe.db.get_value(
+                "Account",
+                {
+                    "account_currency": currency,
+                    "account_type": "Cash",
+                    "is_group": 0,
+                    "disabled": 0,
+                },
+                "name",
+            )
+
+            if account is None:
+                unavailable_accounts.append(currency)
+                frappe.get_doc(
+                    {
+                        "doctype": "ToDo",
+                        "description": f"Set up cash account for currency: {currency}",
+                        "allocated_to": "Administrator",
+                        "status": "Open",
+                    }
+                ).insert(ignore_permissions=True)
+            else:
+                accounts[currency] = account
+
+        if unavailable_accounts:
+            return {
+                "success": False,
+                "message": f"Unavailable accounts for: {', '.join(unavailable_accounts)} ({len(unavailable_accounts)})",
+                "details": "Please set up cash accounts for the missing currencies.",
+            }
+
+        for currency, amount in payments.items():
+            amount_in_system_currency = float(amount) / exchange_rates.get(currency)
+            payment_entry = frappe.new_doc("Payment Entry")
+            payment_entry.payment_type = "Receive"
+            payment_entry.party_type = "Customer"
+            payment_entry.party = customer
+            payment_entry.mode_of_payment = "Cash"
+
+            payment_entry.paid_to = accounts[currency]
+            payment_entry.received_amount = float(amount)
+            payment_entry.paid_amount = amount_in_system_currency
+
+            payment_entry.save(ignore_permissions=True)
+            payment_entry.submit()
+
+        frappe.db.commit()
+
+        return {
+            "success": True,
+            "message": "Multi-currency payment made successfully",
+            "details": "Payments processed for: " + ", ".join(payments.keys()),
+        }
+
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Make Multi Currency Payment Failed")
+        frappe.db.rollback()
+
 
         return {
             "success": False,
-            "remarks": [],
-            "error": str(e)
+            "message": "Failed to make multi-currency payment" + " (" + str(e) + ")",
+            "details": str(e),
         }

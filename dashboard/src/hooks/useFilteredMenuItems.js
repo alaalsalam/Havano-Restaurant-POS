@@ -4,30 +4,29 @@ export default function useFilteredMenuItems(menuItems, searchTerm, selectedCate
 	return useMemo(() => {
 		const term = searchTerm.trim().toLowerCase();
 
-		const initialfilteredItems = [...menuItems].filter((item) => {
+		const matchesSearch = (item) => {
+			if (!term) return true;
+
+			const itemName = (item.item_name || "").toLowerCase();
+			const name = (item.name || "").toLowerCase();
+
+			return itemName.includes(term) || name.includes(term);
+		};
+
+		const initialFilteredItems = menuItems.filter((item) => {
 			const matchesCategory =
 				!selectedCategoryId ||
 				selectedCategoryId === "all" ||
-				item.custom_menu_category === selectedCategoryId;
+				item.item_group === selectedCategoryId;
 
-			const label = (item.item_name || item.name || "").toLowerCase();
-			const matchesSearch = !term || label.includes(term);
-
-			return matchesCategory && matchesSearch;
+			return matchesCategory && matchesSearch(item);
 		});
 
-		if (initialfilteredItems.length === 0) {
-			const filteredItems = menuItems.filter((item) => {
-					const label = (item.item_name || item.name || "").toLowerCase();
-					const matchesSearch = !term || label.includes(term);
-
-					return matchesSearch;
-				});
-
-			return filteredItems;
+		// fallback: ignore category if nothing found
+		if (initialFilteredItems.length === 0) {
+			return menuItems.filter(matchesSearch);
 		}
 
-
-		return initialfilteredItems;
+		return initialFilteredItems;
 	}, [menuItems, searchTerm, selectedCategoryId]);
 }

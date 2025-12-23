@@ -7,7 +7,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import MultiCurrencyDialog from "./MultiCurrencyDialog";
 import Keyboard from "@/components/ui/Keyboard";
 import { Textarea } from "@/components/ui/textarea";
 import { createOrderAndPay, makePaymentForTransaction,get_invoice_json } from "@/lib/utils";
@@ -32,6 +32,9 @@ export default function PaymentDialog({
   const [loading, setLoading] = useState(false);
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(true);
   const [total, setTotal] = useState(0);
+  const [openMultiCurrencyDialog, setOpenMultiCurrencyDialog] = useState(false);
+
+  
 
   // Fetch payment methods from HA POS Setting
   useEffect(() => {
@@ -304,11 +307,19 @@ export default function PaymentDialog({
           background: #555;
         }
       `}</style>
+      <MultiCurrencyDialog
+        open={openMultiCurrencyDialog}
+        onOpenChange={setOpenMultiCurrencyDialog}
+        setPaymentDialogOpenState={onOpenChange}
+        total={total}
+      />
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="p-4 rounded-xl bg-white shadow-lg w-full max-w-7xl payment-dialog-content">
           <div className="flex flex-col h-full">
             <DialogHeader className="mb-3 flex-shrink-0">
-              <DialogTitle className="text-lg font-semibold">Make Payment</DialogTitle>
+              <DialogTitle className="text-lg font-semibold">
+                Make Payment
+              </DialogTitle>
               <DialogDescription className="sr-only">
                 Enter payment amount and select payment method
               </DialogDescription>
@@ -317,38 +328,58 @@ export default function PaymentDialog({
             <div className="flex flex-col sm:flex-row gap-4 flex-1 min-h-0">
               <div className="flex-1 bg-gray-50 p-4 rounded-lg min-w-0">
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium">Total</label>
-                    <div className="text-2xl font-bold">${total?.toFixed(2) || "0.00"}</div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-sm font-medium">Total</label>
+                      <div className="text-2xl font-bold">
+                        ${total?.toFixed(2) || "0.00"}
+                      </div>
+                    </div>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="mt-2 p-0"
+                      onClick={() => setOpenMultiCurrencyDialog(true)}
+                    >
+                      Split Payment / Multi-Currency
+                    </Button>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium">Payments</label>
+                    <label className="block text-sm font-medium">
+                      Payments
+                    </label>
                     <div className="space-y-2 mt-2">
                       {paymentMethods.map((m) => (
-                        <div 
-                          key={m} 
+                        <div
+                          key={m}
                           className={`flex items-center gap-2 p-2 border rounded-lg transition-colors ${
-                            activeMethod === m 
-                              ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200" 
+                            activeMethod === m
+                              ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
                               : "border-gray-300 bg-white hover:border-gray-400"
                           }`}
                         >
-                          <div className={`w-28 font-medium ${
-                            activeMethod === m ? "text-blue-700" : "text-gray-700"
-                          }`}>
+                          <div
+                            className={`w-28 font-medium ${
+                              activeMethod === m
+                                ? "text-blue-700"
+                                : "text-gray-700"
+                            }`}
+                          >
                             {m}
                           </div>
                           <input
                             inputMode="decimal"
                             className={`flex-1 p-2 border rounded ${
-                              activeMethod === m 
-                                ? "border-blue-400 bg-white ring-1 ring-blue-300 focus:ring-2 focus:ring-blue-400" 
+                              activeMethod === m
+                                ? "border-blue-400 bg-white ring-1 ring-blue-300 focus:ring-2 focus:ring-blue-400"
                                 : "border-gray-300 focus:border-gray-400 focus:ring-1 focus:ring-gray-300"
                             }`}
                             value={paymentAmounts[m]}
                             onFocus={() => setActiveMethod(m)}
-                            onChange={(e) => setPaymentAmount(m, e.target.value)}
+                            onChange={(e) =>
+                              setPaymentAmount(m, e.target.value)
+                            }
                           />
                         </div>
                       ))}
@@ -357,11 +388,17 @@ export default function PaymentDialog({
 
                   <div>
                     <label className="block text-sm font-medium">Change</label>
-                    <div className={`text-xl font-bold ${
-                      paymentStatus.hasDue ? "text-red-600" : paymentStatus.hasReturn ? "text-green-600" : ""
-                    }`}>
-                      {paymentStatus.diff >= 0 
-                        ? `Return ${paymentStatus.diff.toFixed(2)}` 
+                    <div
+                      className={`text-xl font-bold ${
+                        paymentStatus.hasDue
+                          ? "text-red-600"
+                          : paymentStatus.hasReturn
+                          ? "text-green-600"
+                          : ""
+                      }`}
+                    >
+                      {paymentStatus.diff >= 0
+                        ? `Return ${paymentStatus.diff.toFixed(2)}`
                         : `Due -${Math.abs(paymentStatus.diff).toFixed(2)}`}
                     </div>
                   </div>
@@ -374,9 +411,9 @@ export default function PaymentDialog({
                     >
                       Cancel
                     </Button>
-                    <Button 
-                      onClick={handlePay} 
-                      disabled={loading || paymentStatus.hasDue} 
+                    <Button
+                      onClick={handlePay}
+                      disabled={loading || paymentStatus.hasDue}
                       className="flex-1"
                     >
                       {loading ? "Processing..." : "Make Payment"}

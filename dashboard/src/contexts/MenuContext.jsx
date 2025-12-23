@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useRef } from "react";
 import { useCartStore } from "@/stores/useCartStore";
 import { useMenuStore } from "@/stores/useMenuStore";
 import {
@@ -20,6 +20,9 @@ export function MenuProvider({ children }) {
   const [target, setTarget] = useState("menu");
   const [selectedAgent, setSelectedAgent] = useState(null);
   const { menuItems, fetchMenuItems, menuCategories, fetchMenuCategories } = useMenuStore();
+
+
+  const menuGridRef = useRef(null);
 
   const {
     cart,
@@ -95,7 +98,8 @@ export function MenuProvider({ children }) {
     items: filteredItems,
     target,
     setTarget,
-    visibleCategories
+    visibleCategories,
+    menuGridRef
   });
 
   return (
@@ -143,7 +147,8 @@ export function MenuProvider({ children }) {
         customerName,
         addToCart,
         selectedAgent,
-        setSelectedAgent
+        setSelectedAgent,
+        menuGridRef,
       }}
     >
       {children}
