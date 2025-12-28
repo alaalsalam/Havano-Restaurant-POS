@@ -7,6 +7,7 @@
  "field_order": [
   "ha_on_pres_enter",
   "default_customer",
+  "restaurant_mode",
   "column_break_rork",
   "default_price_list",
   "default_payment_method",
@@ -64,13 +65,19 @@
    "fieldtype": "Table",
    "label": "User Mapping",
    "options": "Ha User Mapping"
+  },
+  {
+   "default": "0",
+   "fieldname": "restaurant_mode",
+   "fieldtype": "Check",
+   "label": "Restaurant Mode"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-12-27 14:17:57.683950",
+ "modified": "2025-12-27 15:43:30.408073",
  "modified_by": "Administrator",
  "module": "Havano Restaurant Pos",
  "name": "HA POS Settings",

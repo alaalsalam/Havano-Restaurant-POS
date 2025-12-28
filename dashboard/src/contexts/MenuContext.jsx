@@ -9,8 +9,6 @@ import {
   useSortedCategories,
   useCategoryColors,
   useCategoryCounts,
-  useSpecies,
-  useBreeds
 } from "@/hooks";
 
 const MenuContext = createContext(null);
@@ -79,8 +77,6 @@ export function MenuProvider({ children }) {
   const selectedCategoryId = selectedCategory?.id;
 
   const { customers, loadingCustomers, fetchCustomers } = useCustomers();
-  const { species, loadingSpecies, fetchSpecies } = useSpecies();
-  const { breeds, loadingBreeds, fetchBreeds } = useBreeds();
   const availableTransactionTypes = useTransactionTypes(
     transactionType,
     setTransactionType
@@ -123,12 +119,6 @@ export function MenuProvider({ children }) {
         setCurrentIndex,
         target,
         setTarget,
-        species, 
-        loadingSpecies,
-         fetchSpecies ,
-         breeds,
-        loadingBreeds, 
-        fetchBreeds ,
         cart,
         removeFromCart,
         openUpdateDialog,

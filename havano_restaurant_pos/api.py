@@ -55,32 +55,13 @@ def get_customers():
 def get_default_customer():
     """
     Fetch the default customer.
-    Tries HA POS Setting first, then Sample POS Settings.
     Returns None if not found.
     """
     try:
-        # Try HA POS Setting first
-        ha_settings = frappe.get_all(
-            "HA POS Setting",
-            filters={"ha_pos_settings_on": 1},
-            fields=["name", "default_customer"],
-            limit_page_length=1,
-        )
+        ha_settings = frappe.get_single("HA POS Settings")
 
-        if ha_settings and ha_settings[0].get("default_customer"):
-            return ha_settings[0]["default_customer"]
-
-        # Try Sample POS Settings
-        try:
-            default_dine_in_customer = frappe.db.get_single_value(
-                "Sample POS Settings", "default_dine_in_customer"
-            )
-            if default_dine_in_customer:
-                return default_dine_in_customer
-        except Exception as e:
-            frappe.log_error(
-                e, "Error fetching default customer from Sample POS Settings"
-            )
+        if ha_settings and ha_settings.get("default_customer"):
+            return ha_settings["default_customer"]
 
         return None
 
@@ -109,145 +90,15 @@ def create_customer(customer_name, mobile_no=None):
             "Customer", {"customer_name": customer_name.strip()}
         )
         if existing:
-            # Update existing customer with any provided fields
-            customer = frappe.get_doc("Customer", existing)
-            # Set common fields safely
-            if meta.has_field("customer_name"):
-                customer.customer_name = name_value
-
-            if meta.has_field("customer_type") and not getattr(customer, "customer_type", None):
-                customer.customer_type = "Company"
-
-            if meta.has_field("customer_group") and not getattr(customer, "customer_group", None):
-                customer.customer_group = (
-                    frappe.db.get_single_value("Selling Settings", "customer_group")
-                    or "All Customer Groups"
-                )
-
-            if meta.has_field("territory") and not getattr(customer, "territory", None):
-                customer.territory = (
-                    frappe.db.get_single_value("Selling Settings", "territory") or "All Territories"
-                )
-
-            # If no custom_warehouse provided, try to fetch a sensible default from Stock Settings
-            if not extra_values.get("custom_warehouse"):
-                try:
-                    default_wh = frappe.db.get_single_value("Stock Settings", "default_warehouse")
-                    if default_wh:
-                        extra_values["custom_warehouse"] = default_wh
-                except Exception:
-                    # ignore if Stock Settings not present
-                    pass
-            if not extra_values.get("custom_cost_center"):
-                try:
-                    default_wh = frappe.db.get_single_value("Stock Settings", "default_cost_center")
-                    if default_wh:
-                        extra_values["custom_cost_center"] = default_wh
-                except Exception:
-                    # ignore if Stock Settings not present
-                    pass
-            # Apply extra values only for fields that exist on the doctype
-            for key, val in extra_values.items():
-                if val is None:
-                    continue
-                if key == "mobile_no":
-                    # mobile_no handling: set on customer and later create/update contact
-                    if meta.has_field("mobile_no"):
-                        customer.mobile_no = val
-                    continue
-                if meta.has_field(key):
-                    setattr(customer, key, val)
-
-            customer.save(ignore_permissions=True)
-
-            # If mobile_no provided, ensure contact exists/updated
-            if mobile_no and isinstance(mobile_no, str) and mobile_no.strip():
-                mobile_val = mobile_no.strip()
-                contact_name = None
-                # Try to find an existing primary contact linked to this customer
-                contacts = frappe.get_all("Contact", filters={"company_name": name_value}, limit=1)
-                if contacts:
-                    contact_name = contacts[0].name
-                if contact_name:
-                    frappe.db.set_value("Contact", contact_name, "phone_nos", None)  # ensure structure
-                    # Try to set primary mobile (if field exists in Contact doctype)
-                    try:
-                        cdoc = frappe.get_doc("Contact", contact_name)
-                        cdoc.append("phone_nos", {"phone": mobile_val, "is_primary_mobile_no": 1})
-                        cdoc.save(ignore_permissions=True)
-                    except Exception:
-                        frappe.db.set_value("Contact", contact_name, "phone", mobile_val)
-                else:
-                    # create contact
-                    try:
-                        contact = frappe.new_doc("Contact")
-                        contact.is_primary_contact = 1
-                        contact.company_name = name_value
-                        contact.append("links", {"link_doctype": "Customer", "link_name": customer.name})
-                        contact.append("phone_nos", {"phone": mobile_val, "is_primary_mobile_no": 1})
-                        contact.insert(ignore_permissions=True)
-                        frappe.db.set_value("Customer", customer.name, "customer_primary_contact", contact.name)
-                        frappe.db.set_value("Customer", customer.name, "mobile_no", mobile_val)
-                    except Exception:
-                        # Best-effort: set phone on Contact table if different structure
-                        pass
-
-            # Process pets (if any) and create Pet Details docs with `patient_owner` set to this customer
-            created_pets = []
-            try:
-                pet_rows = frappe.parse_json(pets) if isinstance(pets, str) else (pets or [])
-                if pet_rows:
-                    pet_meta = None
-                    for pet in pet_rows:
-                        if not isinstance(pet, dict):
-                            continue
-                        try:
-                            # attempt to create a Pet Details doc if doctype exists
-                            if pet_meta is None:
-                                try:
-                                    pet_meta = frappe.get_meta("Patient Name")
-                                except Exception:
-                                    pet_meta = None
-
-                            if pet_meta:
-                                pet_doc = frappe.new_doc("Patient Name")
-                                mapping = {
-                                    "patient_name": pet.get("patient_name"),
-                                    "species": pet.get("species"),
-                                    "sex": pet.get("sex"),
-                                    "date_of_birth": pet.get("date_of_birth"),
-                                    "breed": pet.get("breed"),
-                                    "complaint": pet.get("complaint"),
-                                    "patient_owner": customer.name,
-                                }
-                                for k, v in mapping.items():
-                                    if v is None:
-                                        continue
-                                    if k == "patient_owner" or pet_meta.has_field(k):
-                                        setattr(pet_doc, k, v)
-
-                                pet_doc.insert(ignore_permissions=True)
-                                created_pets.append(pet_doc.name)
-                        except Exception:
-                            frappe.log_error(frappe.get_traceback(), "Error creating Pet Details from create_customer")
-            except Exception:
-                # invalid JSON or other error; ignore pets
-                created_pets = []
-
-            frappe.db.commit()
-
             return {
                 "success": True,
-                "message": "Customer already exists. Fields updated.",
-                "customer": customer.name,
-                "created_pets": created_pets,
+                "message": "Customer already exists",
+                "customer": existing,
             }
 
         # Create new customer
         customer = frappe.new_doc("Customer")
-        # Basic fields
-        if frappe.get_meta("Customer").has_field("customer_name"):
-            customer.customer_name = name_value
+        customer.customer_name = customer_name.strip()
         customer.customer_type = "Company"
         customer.customer_group = (
             frappe.db.get_single_value("Selling Settings", "customer_group")
@@ -292,7 +143,11 @@ def create_customer(customer_name, mobile_no=None):
     except Exception as e:
         title = "Error creating customer"
         frappe.log_error(frappe.get_traceback(), title)
-        return {"success": False, "message": "Failed to create customer", "details": str(e)}
+        return {
+            "success": False,
+            "message": "Failed to create customer",
+            "details": str(e),
+        }
 
 
 @frappe.whitelist()
@@ -1957,8 +1812,9 @@ def make_multi_currency_payment(customer, payments):
     settings = frappe.get_single("HA POS Settings")
 
     company = None
+    system_user = frappe.session.user
     for row in settings.user_mapping:
-        if row.user == frappe.session.user:
+        if row.user == system_user:
             company = row.company
             break
 

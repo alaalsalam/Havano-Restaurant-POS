@@ -42,18 +42,19 @@ export default function PaymentDialog({
       setLoadingPaymentMethods(true);
       try {
         // First, find the active POS setting
-        const settings = await db.getDocList("HA POS Setting", {
-          fields: ["name"],
-          filters: { ha_pos_settings_on: 1 },
-          limit: 1,
-        });
+        // const settings = await db.getDocList("HA POS Setting", {
+        //   fields: ["name"],
+        //   filters: { ha_pos_settings_on: 1 },
+        //   limit: 1,
+        // });
+        // const {message: settings} = await db.getSingleValue("HA POS Setting", "active_pos_setting");
+        const doc = db.getDoc("HA POS Settings");
+        console.log("HA POS Settings document:", doc);
 
-        if (settings && settings.length > 0) {
-          // Fetch the full document to get child table
-          const settingDoc = await db.getDoc("HA POS Setting", settings[0].name);
+        if (doc) {
           
           // Extract payment methods from child table
-          const methods = (settingDoc.selected_payment_methods || [])
+          const methods = (doc.selected_payment_methods || [])
             .map((item) => item.mode_of_payment)
             .filter((method) => method); // Remove any null/undefined values
 

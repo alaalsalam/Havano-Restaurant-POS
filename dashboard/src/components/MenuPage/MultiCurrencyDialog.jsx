@@ -7,13 +7,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
- } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import Keyboard from "@/components/ui/Keyboard";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,12 @@ import { useCurrencyExchange, useMultiCurrencyPayment } from "@/hooks";
 import { toast, Toaster } from "sonner";
 import { useCartStore } from "@/stores/useCartStore";
 
-export default function MultiCurrencyDialog({ open, onOpenChange, total, setPaymentDialogOpenState }) {
+export default function MultiCurrencyDialog({
+  open,
+  onOpenChange,
+  total,
+  setPaymentDialogOpenState,
+}) {
   const BASE_TOTAL = total || 0;
   const { exchangeRates } = useCurrencyExchange();
 
@@ -32,17 +38,17 @@ export default function MultiCurrencyDialog({ open, onOpenChange, total, setPaym
   const { submitPayment, loading, error, success } = useMultiCurrencyPayment();
   const clearCart = useCartStore((state) => state.clearCart);
 
-  const { register, watch, setValue, reset, setFocus, control, handleSubmit } = useForm({
-    defaultValues: {
-      payments: {},
-    },
-  });
+  const { register, watch, setValue, reset, setFocus, control, handleSubmit } =
+    useForm({
+      defaultValues: {
+        payments: {},
+      },
+    });
 
   useEffect(() => {
     if (error) toast.error(error);
     if (success) toast.success("Payment successful");
   }, [error, success]);
-
 
   useEffect(() => {
     if (open && exchangeRates) {
@@ -56,8 +62,6 @@ export default function MultiCurrencyDialog({ open, onOpenChange, total, setPaym
       });
     }
   }, [open, exchangeRates, reset]);
-
-
 
   const payments =
     useWatch({
@@ -248,12 +252,12 @@ export default function MultiCurrencyDialog({ open, onOpenChange, total, setPaym
                   <div className="payment-keyboard-box">
                     <Keyboard
                       value={payments[activeCurrency]}
-                      setValue={(val) =>{
+                      setValue={(val) => {
                         setValue(`payments.${activeCurrency}`, val, {
                           shouldDirty: true,
                           shouldTouch: true,
-                        })}
-                      }
+                        });
+                      }}
                     />
 
                     <div className="flex gap-2 pt-2">
@@ -293,7 +297,12 @@ export default function MultiCurrencyDialog({ open, onOpenChange, total, setPaym
             </div>
           </DialogContent>
         </form>
-        <Toaster richColors duration={4000} position="top-center" />
+        <Toaster
+          richColors
+          duration={4000}
+          position="top-center"
+          style={{ zIndex: 9999 }}
+        />
       </Dialog>
       <DevTool control={control} />
     </>

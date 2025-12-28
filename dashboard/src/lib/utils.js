@@ -222,55 +222,19 @@ export async function callPost(method, data = {}) {
   }
 }
 
-export async function getSamplePosMenuItemGroup() {
-  try {
-    const { message } = await db.getSingleValue(
-      "Sample POS Settings",
-      "menu_item_group"
-    );
-    return message || null;
-  } catch (err) {
-    console.error("Error fetching Sample POS Settings.menu_item_group:", err);
-    return null;
-  }
-}
 
 /**
  * Get default customer from Settings
- * Tries HA POS Setting first, then Sample POS Settings
  */
 export async function getDefaultCustomer() {
+
   try {
-    // Try HA POS Setting first
-    try {
-      const settings = await db.getDocList("HA POS Setting", {
-        fields: ["name", "default_customer"],
-        filters: { ha_pos_settings_on: 1 },
-        limit: 1,
-      });
-      if (settings && settings.length > 0 && settings[0].default_customer) {
-        return settings[0].default_customer;
-      }
-    } catch (err) {
-      // HA POS Setting might not exist, continue to try Sample POS Settings
+    const { message } = await db.getSingleValue("HA POS Settings", "default_customer");
+    if (message) {
+      return message;
     }
-
-    // Try Sample POS Settings
-    try {
-      const { message } = await db.getSingleValue(
-        "Sample POS Settings",
-        "default_dine_in_customer"
-      );
-      if (message) {
-        return message;
-      }
-    } catch (err) {
-      console.error("Error fetching default customer from Sample POS Settings:", err);
-    }
-
-    return null;
   } catch (err) {
-    console.error("Error fetching default customer:", err);
+    console.error("Error fetching default customer from HA POS Settings:", err);
     return null;
   }
 }
@@ -298,12 +262,12 @@ export async function saveItemPreparationRemark(item, remark) {
 export async function isRestaurantMode() {
   try {
     const { message } = await db.getSingleValue(
-      "Sample POS Settings",
+      "HA POS Settings",
       "restaurant_mode"
     );
     return message || false;
   } catch (err) {
-    console.error("Error fetching Sample POS Settings.is_restaurant_mode:", err);
+    console.error("Error fetching HA POS Settings.is_restaurant_mode:", err);
     return false;
   }
   
@@ -616,12 +580,12 @@ export async function getBreeds() {
  * @param {string} mobileNo - Mobile number (optional)
  */
 export async function createCustomer(payload = {}) {
+  console.log("Creating customer with payload:", payload);
   return attemptWithRetries(
     async () => {
       const { message } = await call.post(
         "havano_restaurant_pos.api.create_customer",
-        {"customer_name": payload.customer_name,"pets": payload.pets
-}
+        {"customer_name": payload.customer_name,"mobile_no": payload.mobile_no}
       );
       return message;
     },

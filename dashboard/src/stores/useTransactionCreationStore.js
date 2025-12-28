@@ -1,7 +1,6 @@
 import { create } from "zustand";
 
 import { db } from "@/lib/frappeClient";
-import { getSamplePosMenuItemGroup } from "@/lib/utils";
 
 export const useTransactionCreationStore = create((set) => ({
   cart: [],
@@ -132,10 +131,8 @@ export const useTransactionCreationStore = create((set) => ({
   fetchMenuItems: async () => {
     set({ loading: true, error: null });
     try {
-      const menuItemGroup = await getSamplePosMenuItemGroup();
       const data = await db.getDocList("Item", {
         fields: ["name", "standard_rate", "item_name", "custom_menu_category"],
-        filters: menuItemGroup ? [["item_group", "=", menuItemGroup]] : [],
       });
       set({ menuItems: data, loading: false });
     } catch (err) {
