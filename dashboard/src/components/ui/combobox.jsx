@@ -19,6 +19,7 @@ export function Combobox({
   onCreate,
   onCreated,
   emptyText = "No results found",
+  onOpenChange, 
 }) {
   const [open, setOpen] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -53,7 +54,7 @@ export function Combobox({
     }
   }, [open]);
 
-   let createDialogContent = null;
+  let createDialogContent = null;
 
   if (onCreate) {
     if (type === "customer") {
@@ -96,7 +97,13 @@ export function Combobox({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        onOpenChange?.(nextOpen);
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -129,9 +136,7 @@ export function Combobox({
         <div className="max-h-[300px] overflow-y-auto">
           {filteredOptions.length === 0 ? (
             <div className="px-4 py-6 text-center">
-              <p className="text-sm text-muted-foreground mb-3">
-                {emptyText}
-              </p>
+              <p className="text-sm text-muted-foreground mb-3">{emptyText}</p>
               {onCreate && searchTerm && (
                 <Button
                   type="button"

@@ -53,6 +53,17 @@ const Menu = () => {
   
   const searchInputRef = useRef(null);
 
+   useEffect(() => {
+     if (target === "menu") {
+       requestAnimationFrame(() => {
+         menuGridRef.current?.scrollTo({
+           top: 0,
+           behavior: "smooth",
+         });
+       });
+     }
+   }, [target]);
+
 
   useEffect(() => {
     if (!openMixDialog) {
@@ -100,7 +111,7 @@ const Menu = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [target]);
 
 
   useEffect(() => {
@@ -110,6 +121,14 @@ const Menu = () => {
       setTarget("menu");
     }
   }, [openMixDialog])
+
+  useEffect(() => {
+    if (!openMixDialog && target === "menu") {
+      requestAnimationFrame(() => {
+        searchInputRef.current?.focus();
+      });
+    }
+  }, [openMixDialog, target]);
 
   
   return (
@@ -130,6 +149,13 @@ const Menu = () => {
             value={transactionType}
             onValueChange={setTransactionType}
             disabled={availableTransactionTypes.length === 0}
+            onOpenChange={(open) => {
+              if (!open && target === "menu") {
+                requestAnimationFrame(() => {
+                  searchInputRef.current?.focus();
+                });
+              }
+            }}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Transaction Type" />
@@ -162,6 +188,13 @@ const Menu = () => {
               fetchAgents();
               setSelectedAgent(newAgent.value);
             }}
+            onOpenChange={(open) => {
+              if (!open && target === "menu") {
+                requestAnimationFrame(() => {
+                  searchInputRef.current?.focus();
+                });
+              }
+            }}
           />
           <Combobox
             type="customer"
@@ -182,6 +215,13 @@ const Menu = () => {
               fetchCustomers();
               setCustomer(newCustomer.value);
             }}
+            onOpenChange={(open) => {
+              if (!open && target === "menu") {
+                requestAnimationFrame(() => {
+                  searchInputRef.current?.focus();
+                });
+              }
+            }}
           />
           <div className="flex items-center bg-background px-2 py-1 rounded-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary">
             <input
@@ -192,12 +232,25 @@ const Menu = () => {
               className="w-[200px] focus:outline-none focus:ring-0 focus:border-transparent"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              // onBlur={() => {
-              //   // Refocus immediately when input loses focus
-              //   setTimeout(() => {
-              //     searchInputRef.current?.focus();
-              //   }, 0);
-              // }}
+              onBlur={(e) => {
+                // if (target !== "menu") return;
+
+                const nextFocused = e.relatedTarget;
+
+                // If focus is moving to a button / select / combobox, do nothing
+                if (
+                  nextFocused &&
+                  nextFocused.closest(
+                    "[data-radix-select-trigger], [data-combobox], button, input"
+                  )
+                ) {
+                  return;
+                }
+
+                setTimeout(() => {
+                  searchInputRef.current?.focus();
+                }, 0);
+              }}
             />
             {searchTerm.length > 0 ? (
               <X
@@ -213,7 +266,7 @@ const Menu = () => {
 
       <div
         ref={menuGridRef}
-        className="grid grid-cols-5 gap-4 max-h-[80vh] overflow-y-auto scrollbar pb-4"
+        className="grid grid-cols-5 gap-4 max-h-[80vh] overflow-y-auto scrollbar p-4"
       >
         {filteredItems.map((item, index) => (
           <MenuItemCard key={item.name} item={item} index={index} />

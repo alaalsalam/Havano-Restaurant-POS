@@ -67,7 +67,7 @@ export default function useMenuNavigation({ NUMBER_OF_COLUMNS, items, target, se
 					setCurrentIndex(currentIndex - 1);
 				} else {
 					// setTarget("category");
-					setCurrentIndex(0);
+					// setCurrentIndex(0);
 				}
 				break;
 			}
@@ -145,6 +145,7 @@ export default function useMenuNavigation({ NUMBER_OF_COLUMNS, items, target, se
 				setTarget("menu");
 				setCurrentIndex(0);
 				break;
+
 			
 			default:
 				break;

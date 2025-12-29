@@ -1,7 +1,6 @@
 import { useMenuContext } from "@/contexts/MenuContext";
 import { cn } from "@/lib/utils";
-import { se } from "date-fns/locale";
-import { useEffect } from "react";
+import { use, useEffect } from "react";
 
 const MenuCategories = () => {
   const {
@@ -11,9 +10,29 @@ const MenuCategories = () => {
     visibleCategories,
     setSelectedCategory,
     target,
+    setTarget,
     currentIndex,
     setCurrentIndex,
   } = useMenuContext();
+
+  useEffect(() => {
+    const handleEnterKey = (event) => {
+      if (event.key === "Enter" && target === "category") {
+        const category = visibleCategories[currentIndex];
+        if (category) {
+          setSelectedCategory({
+            id: category.name,
+            name: category.category_name,
+          });
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleEnterKey);
+    return () => {
+      window.removeEventListener("keydown", handleEnterKey);
+    };
+  }, [target, currentIndex]);
 
 
   return (
@@ -38,7 +57,6 @@ const MenuCategories = () => {
             )}
             onClick={() =>{
               if (target === "category" && index === currentIndex) return;
-              setCurrentIndex(index);
               setSelectedCategory({
                 id: category.name,
                 name: category.category_name,
