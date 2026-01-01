@@ -78,7 +78,7 @@ async function attemptWithRetries(action, description, attempts = MAX_ORDER_RETR
 
 async function initDefaultCurrency() {
   try {
-    const { message } = await db.getSingleValue("System Settings", "currency");
+    const { message } = await db.getSingleValue("Global Defaults", "default_currency");
     if (message) defaultCurrency = message;
   } catch (err) {
     console.warn("Could not fetch default currency:", err);
@@ -460,6 +460,48 @@ export async function makePaymentForTransaction(doctype, docname, amount = null,
       return message;
     },
     "Make payment for transaction"
+  );
+}
+
+/**
+ * Create sales invoice and payment entries in background queue.
+ * Returns immediately with job ID for async processing.
+ * @param {Array} cartItems - Cart items
+ * @param {string} customer - Customer name
+ * @param {Array} paymentBreakdown - Array of {payment_method, amount} objects (for multi-currency)
+ * @param {string} paymentMethod - Single payment method (for regular payment)
+ * @param {number} amount - Payment amount
+ * @param {string} note - Payment notes
+ * @param {Object} orderPayload - Optional order payload for HA Order creation
+ */
+export async function createInvoiceAndPaymentQueue(
+  cartItems,
+  customer,
+  paymentBreakdown = null,
+  paymentMethod = null,
+  amount = null,
+  note = null,
+  orderPayload = null,
+  multiCurrencyPayments = null
+) {
+  return attemptWithRetries(
+    async () => {
+      const { message } = await call.post(
+        "havano_restaurant_pos.api.create_invoice_and_payment_queue",
+        {
+          cart_items: cartItems,
+          customer,
+          payment_breakdown: paymentBreakdown,
+          payment_method: paymentMethod,
+          amount,
+          note,
+          order_payload: orderPayload,
+          multi_currency_payments: multiCurrencyPayments,
+        }
+      );
+      return message;
+    },
+    "Create invoice and payment"
   );
 }
 

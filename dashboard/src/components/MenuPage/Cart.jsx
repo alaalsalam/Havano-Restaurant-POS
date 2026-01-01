@@ -206,10 +206,12 @@ const Cart = () => {
     }
 
     
+    // Place Order (F10) - Just open payment dialog, don't create sales invoice
+    // Sales invoice will be created only when Make Payment is clicked
     setIsSubmitting(true);
     try {
-      
-      let selectedCustomer = customer;
+      // Get customer - use selected customer or get default
+      let selectedCustomer = customerName || customer;
       if (!selectedCustomer) {
         selectedCustomer = await getDefaultCustomer();
         if (!selectedCustomer) {
@@ -222,46 +224,31 @@ const Cart = () => {
         }
       }
 
-      
-      const items = cart.map((item) => ({
-        item_code: item.name || item.item_name,
-        qty: item.quantity || 1,
-        rate: item.price || item.standard_rate || 0,
-      }));
+      const payload = {
+        order_type: orderType || "Take Away",
+        customer_name: selectedCustomer,
+        order_items: cart.map((item) => ({
+          item_code: item.name || item.item_name,
+          qty: item.quantity || 1,
+          rate: item.price || item.standard_rate || 0,
+        })),
+        table: activeTableId || null,
+        waiter: activeWaiterId || null,
+        agent: selectedAgent || null,
+      };
 
-      // Create Sales Invoice first
-      const invoiceResult = await createTransaction(
-        "Sales Invoice", 
-        selectedCustomer, 
-        items,
-        null, // company
-        orderType || "Take Away", // order_type
-        activeTableId || null, // table
-        activeWaiterId || null, // waiter
-        customerName || selectedCustomer, // customer_name
-        selectedAgent
-      );
-      
-      if (invoiceResult && invoiceResult.success !== false && invoiceResult.name) {
-        
-        setPaymentState({
-          open: true,
-          orderId: null,
-          items: cart,
-          payload: null,
-          isExistingTransaction: true,
-          transactionDoctype: "Sales Invoice",
-          transactionName: invoiceResult.name,
-        });
-      } else {
-        toast.error("Failed to create sales invoice", {
-          description: invoiceResult?.message || invoiceResult?.details || "Please try again later.",
-          duration: 5000,
-        });
-      }
+      setPaymentState({
+        open: true,
+        orderId: null,
+        items: cart,
+        payload: payload,
+        isExistingTransaction: false,
+        transactionDoctype: null,
+        transactionName: null,
+      });
     } catch (err) {
-      console.error("Sales Invoice creation error:", err);
-      toast.error("Failed to create sales invoice", {
+      console.error("Error preparing payment:", err);
+      toast.error("Failed to prepare payment", {
         description: err?.message || "Please try again later.",
         duration: 5000,
       });

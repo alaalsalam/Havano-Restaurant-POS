@@ -10,7 +10,7 @@ import {
 import MultiCurrencyDialog from "./MultiCurrencyDialog";
 import Keyboard from "@/components/ui/Keyboard";
 import { Textarea } from "@/components/ui/textarea";
-import { createOrderAndPay, makePaymentForTransaction,get_invoice_json } from "@/lib/utils";
+import { createInvoiceAndPaymentQueue, makePaymentForTransaction, get_invoice_json } from "@/lib/utils";
 import { db, call } from "@/lib/frappeClient";
 
 export default function PaymentDialog({
@@ -216,20 +216,30 @@ export default function PaymentDialog({
           paymentBreakdown.length > 0 ? paymentBreakdown : null
         );
       } else {
-        // Create new order and payment (original flow)
+        // Create new order and payment using queue (sales invoice and payment created in background)
         const payload =
           orderPayload ||
           ({
             order_type: "Take Away",
-            customer_name: customer,
+            customer_name: customer || (orderPayload && orderPayload.customer_name) || "",
             order_items: cartItems,
           });
 
-        res = await createOrderAndPay(
-          payload,
+        // Ensure customer is set
+        const finalCustomer = payload.customer_name || customer;
+        if (!finalCustomer) {
+          throw new Error("Customer is required. Please select a customer or configure a default customer in Settings.");
+        }
+
+        // Use queue system for async processing
+        res = await createInvoiceAndPaymentQueue(
+          cartItems,
+          finalCustomer,
+          paymentBreakdown.length > 0 ? paymentBreakdown : null,
+          paymentBreakdown.length === 1 ? payment_method : null,
           paidTotal > 0 ? paidTotal : null,
-          payment_method,
-          fullNote
+          fullNote,
+          payload
         );
       }
 
@@ -258,7 +268,8 @@ export default function PaymentDialog({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, paymentStatus.hasDue])
 
   return (
     <>
@@ -325,6 +336,8 @@ export default function PaymentDialog({
         onOpenChange={setOpenMultiCurrencyDialog}
         setPaymentDialogOpenState={onOpenChange}
         total={total}
+        cartItems={cartItems}
+        orderPayload={orderPayload}
       />
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="p-4 rounded-xl bg-white shadow-lg w-full max-w-7xl payment-dialog-content">

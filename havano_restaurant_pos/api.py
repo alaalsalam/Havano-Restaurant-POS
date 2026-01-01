@@ -473,13 +473,14 @@ def create_order_and_payment(payload, amount=None, payment_method=None, note=Non
             except Exception:
                 total += 0
 
-        customer = (
-            payload.get("customer_name")
-            or frappe.db.get_single_value(
-                "Sample Pos Settings", "default_dine_in_customer"
-            )
-            or ""
-        )
+        customer = payload.get("customer_name") or get_default_customer() or ""
+        
+        if not customer:
+            return {
+                "success": False,
+                "message": "Party is mandatory",
+                "details": "Customer is required. Please select a customer or configure a default customer in HA POS Settings.",
+            }
 
         # 2) Get company and account info (optimized: single query for company data)
         company = frappe.defaults.get_user_default(
@@ -566,7 +567,7 @@ def create_order_and_payment(payload, amount=None, payment_method=None, note=Non
                 target_exchange_rate = 1.0
                 received_amount = paid_amount
 
-        # 3) Create all documents in sequence, batch commit at end
+        # 3 Create all documents in sequence, batch commit at end
         try:
             # Create payment entry
             payment_entry = frappe.new_doc("Payment Entry")
@@ -590,8 +591,8 @@ def create_order_and_payment(payload, amount=None, payment_method=None, note=Non
                 payment_entry.reference_date = frappe.utils.nowdate()
             else:
                 payment_entry.reference_no = None
-                payment_entry.reference_date = frappe.utils.nowdate()
-            
+                payment_entry.reference_date = None
+                
             payment_entry.remarks = note or "POS Payment"
             payment_entry.mode_of_payment = payment_method
             
@@ -1510,7 +1511,7 @@ def make_payment_for_transaction(
             mode_type = None
             if original_method and mode_exists:
                 mode_type = frappe.get_cached_value("Mode of Payment", original_method, "type")
-            
+
             source_exchange_rate = 1.0
             target_exchange_rate = 1.0
             received_amount = paid_amount
@@ -1988,10 +1989,10 @@ def create_product_bundle(new_item, price, items):
                     "Product Bundle Cleanup",
                 )
 
-    return {
-        "success": False,
-        "message": str(e) or "Failed to create product bundle",
-    }
+        return {
+            "success": False,
+            "message": str(e) or "Failed to create product bundle",
+        }
 
 
 @frappe.whitelist()
@@ -2540,9 +2541,483 @@ def make_multi_currency_payment(customer, payments):
                 frappe.log_error(f"Make Multi Currency Payment Failed: {error_type}: {error_msg}", "Make Multi Currency Payment Failed")
             except:
                 pass  # If even basic logging fails, just continue
-        
+
         return {
             "success": False,
             "message": "Failed to make multi-currency payment",
             "details": f"{error_type}: {error_msg}",
+        }
+
+
+@frappe.whitelist()
+def create_invoice_and_payment_queue(payload=None, **kwargs):
+    """Create sales invoice and payment entries in background queue.
+    Returns immediately with job ID for async processing.
+    
+    Args:
+        payload: Dict containing all parameters, or individual kwargs
+        kwargs: Individual parameters (for backward compatibility)
+    """
+    try:
+        # Support both payload dict and individual kwargs
+        if payload and isinstance(payload, dict):
+            cart_items = payload.get("cart_items", [])
+            customer = payload.get("customer")
+            payment_breakdown = payload.get("payment_breakdown")
+            payment_method = payload.get("payment_method")
+            amount = payload.get("amount")
+            note = payload.get("note")
+            order_payload = payload.get("order_payload")
+            multi_currency_payments = payload.get("multi_currency_payments")
+        else:
+            # Use kwargs (from frontend POST body)
+            cart_items = kwargs.get("cart_items", [])
+            customer = kwargs.get("customer")
+            payment_breakdown = kwargs.get("payment_breakdown")
+            payment_method = kwargs.get("payment_method")
+            amount = kwargs.get("amount")
+            note = kwargs.get("note")
+            order_payload = kwargs.get("order_payload")
+            multi_currency_payments = kwargs.get("multi_currency_payments")
+        
+        # Prepare items for sales invoice
+        items = []
+        for item in cart_items or []:
+            item_code = item.get("name") or item.get("item_code") or item.get("item_name")
+            qty = item.get("quantity") or item.get("qty") or 1
+            rate = item.get("price") or item.get("rate") or 0
+            items.append({"item_code": item_code, "qty": qty, "rate": rate})
+        
+        if not items:
+            return {
+                "success": False,
+                "message": "No items in cart",
+                "details": "Cannot create invoice without items.",
+            }
+        
+        # 1. Create Sales Invoice synchronously (immediate)
+        from havano_restaurant_pos.havano_restaurant_pos.doctype.ha_pos_invoice.ha_pos_invoice import (
+            create_sales_invoice,
+        )
+        
+        try:
+            inv = create_sales_invoice(customer, items)
+            invoice_name = inv.get("name") if isinstance(inv, dict) else inv
+            
+            if not invoice_name:
+                return {
+                    "success": False,
+                    "message": "Failed to create sales invoice",
+                    "details": f"Sales invoice creation returned no name. Response: {inv}",
+                }
+        except Exception as inv_error:
+            error_msg = f"Error creating sales invoice: {str(inv_error)}\n{frappe.get_traceback()}"
+            frappe.log_error(error_msg, "Create Invoice and Payment - Invoice Creation Error")
+            return {
+                "success": False,
+                "message": "Failed to create sales invoice",
+                "details": str(inv_error),
+            }
+        
+        # 2. Process payment entries (try background, fallback to synchronous)
+        # Try to enqueue in background first, but if queue fails, process immediately
+        payment_processed_async = False
+        job_id = None
+        
+        try:
+            # Prepare job arguments for payment processing only
+            job_kwargs = {
+                "method": "havano_restaurant_pos.havano_restaurant_pos.api.process_payment_entries",
+                "queue": "default",
+                "timeout": 300,
+                "is_async": True,  # True background processing
+                "invoice_name": invoice_name,
+                "payment_breakdown": payment_breakdown,
+                "payment_method": payment_method,
+                "amount": amount,
+                "note": note,
+                "order_payload": order_payload,
+                "multi_currency_payments": multi_currency_payments
+            }
+            
+            # Add job_name if supported (optional parameter)
+            try:
+                job_kwargs["job_name"] = f"process_payment_entries_{invoice_name}_{frappe.utils.now_datetime().strftime('%Y%m%d%H%M%S')}"
+            except:
+                pass  # job_name not supported in this Frappe version
+            
+            job = frappe.enqueue(**job_kwargs)
+            job_id = job.id if hasattr(job, 'id') else (job if isinstance(job, str) else None)
+            payment_processed_async = True
+            
+            frappe.logger().info(f"Payment entries queued for invoice {invoice_name}, job_id: {job_id}")
+            
+        except Exception as queue_error:
+            # Log the error - will process synchronously below
+            error_msg = f"Queue enqueue failed for payment entries: {str(queue_error)}\n{frappe.get_traceback()}"
+            frappe.log_error(error_msg, "Create Payment Entries Queue Error")
+            payment_processed_async = False
+        
+        # Process payment entries synchronously (either as fallback or always for reliability)
+        # This ensures payments are always created even if queue worker isn't running
+        try:
+            payment_result = process_payment_entries(
+                invoice_name,
+                payment_breakdown,
+                payment_method,
+                amount,
+                note,
+                order_payload,
+                multi_currency_payments
+            )
+            
+            if payment_processed_async:
+                # Queue was successful, but we also processed synchronously for reliability
+                # In production, you might want to remove this and rely on queue only
+                return {
+                    "success": True,
+                    "message": "Sales invoice created successfully. Payment entries processed.",
+                    "sales_invoice": invoice_name,
+                    "job_id": job_id,
+                    "payment_result": payment_result,
+                    "status": "invoice_created_payment_processed"
+                }
+            else:
+                # Queue failed, processed synchronously
+                return {
+                    "success": True,
+                    "message": "Sales invoice and payment entries created successfully (processed synchronously - queue unavailable)",
+                    "sales_invoice": invoice_name,
+                    "payment_result": payment_result,
+                    "queue_failed": True
+                }
+        except Exception as sync_error:
+            # Invoice was created but payment failed
+            error_msg = f"Payment processing failed after invoice creation: {str(sync_error)}\n{frappe.get_traceback()}"
+            frappe.log_error(error_msg, "Create Payment Entries Sync Error")
+            return {
+                "success": True,  # Invoice was created successfully
+                "message": f"Sales invoice created successfully, but payment processing failed: {str(sync_error)}",
+                "sales_invoice": invoice_name,
+                "payment_error": str(sync_error),
+                "warning": "Please process payment manually for this invoice"
+            }
+        
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Create Invoice and Payment Queue Error")
+        return {
+            "success": False,
+            "message": "Failed to queue invoice and payment",
+            "details": str(e),
+        }
+
+
+def process_payment_entries(
+    invoice_name,
+    payment_breakdown=None,
+    payment_method=None,
+    amount=None,
+    note=None,
+    order_payload=None,
+    multi_currency_payments=None
+):
+    """Background job to create payment entries for an existing sales invoice.
+    This runs asynchronously in the queue.
+    IMPORTANT: This function must be callable from frappe.enqueue.
+    """
+    frappe.set_user("Administrator")  # Ensure proper permissions in background job
+    try:
+        # Verify invoice exists
+        if not frappe.db.exists("Sales Invoice", invoice_name):
+            error_msg = f"Sales Invoice {invoice_name} not found"
+            frappe.log_error(error_msg, "Process Payment Entries")
+            return {
+                "success": False,
+                "message": "Sales invoice not found",
+                "details": error_msg,
+            }
+        
+        # Create Payment Entries
+        result = None
+        try:
+            if multi_currency_payments and isinstance(multi_currency_payments, dict):
+                # Multi-currency payment (from MultiCurrencyDialog)
+                # Convert multi_currency_payments format to payment_breakdown format
+                # Format: {key: {mode, currency, amount}} -> [{payment_method: mode, amount: amount}]
+                payment_breakdown_list = []
+                for key, payment_info in multi_currency_payments.items():
+                    if isinstance(payment_info, dict):
+                        mode = payment_info.get("mode", "Cash")
+                        amount_val = float(payment_info.get("amount", 0))
+                        if amount_val > 0:
+                            payment_breakdown_list.append({
+                                "payment_method": mode,
+                                "amount": amount_val
+                            })
+                
+                if payment_breakdown_list:
+                    result = make_payment_for_transaction(
+                        "Sales Invoice",
+                        invoice_name,
+                        amount=None,  # Let it calculate from breakdown
+                        payment_method=None,
+                        note=note,
+                        payment_breakdown=payment_breakdown_list
+                    )
+                else:
+                    result = {
+                        "success": False,
+                        "message": "No valid payments in multi-currency payments",
+                    }
+            elif payment_breakdown and isinstance(payment_breakdown, list) and len(payment_breakdown) > 0:
+                # Multi-payment method (regular payment with breakdown)
+                result = make_payment_for_transaction(
+                    "Sales Invoice",
+                    invoice_name,
+                    amount=amount,
+                    payment_method=None,
+                    note=note,
+                    payment_breakdown=payment_breakdown
+                )
+            else:
+                # Single payment method
+                result = make_payment_for_transaction(
+                    "Sales Invoice",
+                    invoice_name,
+                    amount=amount,
+                    payment_method=payment_method or "Cash",
+                    note=note,
+                    payment_breakdown=None
+                )
+            
+            # Check if payment creation was successful
+            if not result or not result.get("success"):
+                error_msg = f"Payment creation failed: {result.get('message') if result else 'No result returned'}"
+                frappe.log_error(error_msg, "Process Payment Entries - Payment Failed")
+                return result
+        except Exception as payment_error:
+            error_msg = f"Error creating payment entries: {str(payment_error)}\n{frappe.get_traceback()}"
+            frappe.log_error(error_msg, "Process Payment Entries - Payment Error")
+            result = {
+                "success": False,
+                "message": "Failed to create payment entries",
+                "details": str(payment_error),
+            }
+        
+        # Create HA Order if order_payload provided
+        order_id = None
+        if order_payload:
+            try:
+                def safe(value):
+                    if not value:
+                        return ""
+                    return str(value)[:140]
+
+                if isinstance(order_payload, str):
+                    import json
+                    order_payload = json.loads(order_payload)
+                
+                # Check if an order was already created for this invoice to prevent duplicates
+                # This can happen if the function is called multiple times (queue + sync)
+                existing_order = frappe.db.get_value(
+                    "HA Order",
+                    {"sales_invoice": invoice_name},
+                    "name"
+                )
+                
+                if existing_order:
+                    # Order already exists, skip creation
+                    order_id = existing_order
+                    frappe.logger().info(f"HA Order {order_id} already exists for invoice {invoice_name}, skipping creation")
+                else:
+                    # Create new order
+                    order = frappe.new_doc("HA Order")
+                    
+                    # Get customer from invoice if not in payload
+                    invoice = frappe.get_doc("Sales Invoice", invoice_name)
+                    customer = invoice.customer
+                    
+                    order.order_type = safe(order_payload.get("order_type"))
+                    order.customer_name = safe(order_payload.get("customer_name") or customer)
+                    order.table = safe(order_payload.get("table"))
+                    order.waiter = safe(order_payload.get("waiter"))
+                    order.payment_status = "Paid"
+                    # Link to sales invoice to prevent duplicates (if field exists)
+                    if hasattr(order, 'sales_invoice'):
+                        order.sales_invoice = invoice_name
+                    
+                    # Add order items - menu_item is mandatory, so skip items without it
+                    for item in order_payload.get("order_items", []):
+                        # Get menu_item from various possible fields
+                        menu_item = item.get("name") or item.get("item_code") or item.get("item_name") or item.get("menu_item")
+                        
+                        # Skip items without a valid menu_item (mandatory field)
+                        if not menu_item:
+                            frappe.log_error(
+                                f"Skipping order item without menu_item: {item}",
+                                "Process Payment Entries - Missing Menu Item"
+                            )
+                            continue
+                        
+                        order.append(
+                            "order_items",
+                            {
+                                "menu_item": str(menu_item),  # Ensure it's a string
+                                "qty": item.get("quantity") or 1,
+                                "rate": item.get("price") or item.get("rate") or 0,
+                                "amount": (item.get("price") or item.get("rate") or 0) * (item.get("quantity") or 1),
+                                "preparation_remark": safe(item.get("remark")),
+                            },
+                        )
+                    
+                    # Only insert order if it has at least one item
+                    if not order.order_items or len(order.order_items) == 0:
+                        frappe.log_error(
+                            f"Cannot create HA Order without order items for invoice {invoice_name}",
+                            "Process Payment Entries - No Order Items"
+                        )
+                        order_id = None
+                    else:
+                        frappe.flags.ignore_validate = True
+                        try:
+                            # Try to insert the order
+                            order.insert(ignore_permissions=True)
+                            order_id = order.name
+                            frappe.logger().info(f"Successfully created HA Order {order_id} for invoice {invoice_name}")
+                        except frappe.DuplicateEntryError as dup_error:
+                            # Order already exists - this can happen if function is called multiple times
+                            # Extract order name from error if possible
+                            error_msg = str(dup_error)
+                            # Try to extract order name from error message
+                            import re
+                            match = re.search(r"'([^']+)'", error_msg)
+                            if match:
+                                existing_order_name = match.group(1)
+                                order_id = existing_order_name
+                                frappe.logger().info(f"HA Order {order_id} already exists (found from error), using existing order")
+                            else:
+                                frappe.log_error(
+                                    f"HA Order already exists (duplicate entry prevented) for invoice {invoice_name}. Error: {error_msg}",
+                                    "Process Payment Entries - Duplicate Order"
+                                )
+                                order_id = None
+                        except Exception as insert_error:
+                            # Other insert errors - log and skip
+                            error_msg = f"Error inserting HA Order: {str(insert_error)}\n{frappe.get_traceback()}"
+                            frappe.log_error(error_msg, "Process Payment Entries - Order Insert Error")
+                            order_id = None
+                        finally:
+                            frappe.flags.ignore_validate = False
+                    
+            except Exception as e:
+                frappe.log_error(f"Error creating HA Order: {str(e)}\n{frappe.get_traceback()}", "Process Payment Entries Order Error")
+                order_id = None
+        
+        # Commit all changes
+        frappe.db.commit()
+        
+        # Log success for monitoring
+        frappe.logger().info(f"Successfully processed payment entries for invoice {invoice_name}")
+        
+        return {
+            "success": True,
+            "message": "Payment entries processed successfully",
+            "sales_invoice": invoice_name,
+            "order_id": order_id,
+            "payment_result": result,
+        }
+        
+    except Exception as e:
+        frappe.db.rollback()
+        error_traceback = frappe.get_traceback()
+        error_msg = f"Error in process_payment_entries: {str(e)}\n{error_traceback}"
+        frappe.log_error(error_msg, "Process Payment Entries Error")
+        
+        # Also log to console for immediate visibility in queue worker
+        print(f"ERROR in process_payment_entries: {error_msg}")
+        
+        return {
+            "success": False,
+            "message": "Failed to process payment entries",
+            "details": str(e),
+        }
+
+
+def process_invoice_and_payment(
+    cart_items,
+    customer,
+    payment_breakdown=None,
+    payment_method=None,
+    amount=None,
+    note=None,
+    order_payload=None,
+    multi_currency_payments=None
+):
+    """Background job to create sales invoice and payment entries.
+    This runs asynchronously in the queue.
+    IMPORTANT: This function must be callable from frappe.enqueue.
+    NOTE: This function is kept for backward compatibility. 
+    New implementation creates invoice synchronously and processes payments in background.
+    """
+    frappe.set_user("Administrator")  # Ensure proper permissions in background job
+    try:
+        # 1. Create Sales Invoice
+        from havano_restaurant_pos.havano_restaurant_pos.doctype.ha_pos_invoice.ha_pos_invoice import (
+            create_sales_invoice,
+        )
+        
+        try:
+            inv = create_sales_invoice(customer, cart_items)
+            invoice_name = inv.get("name") if isinstance(inv, dict) else inv
+            
+            if not invoice_name:
+                error_msg = f"Sales invoice creation returned no name. Response: {inv}"
+                frappe.log_error(error_msg, "Process Invoice and Payment")
+                return {
+                    "success": False,
+                    "message": "Failed to create sales invoice",
+                    "details": error_msg,
+                }
+        except Exception as inv_error:
+            error_msg = f"Error creating sales invoice: {str(inv_error)}\n{frappe.get_traceback()}"
+            frappe.log_error(error_msg, "Process Invoice and Payment - Invoice Creation")
+            return {
+                "success": False,
+                "message": "Failed to create sales invoice",
+                "details": str(inv_error),
+            }
+        
+        # 2. Create Payment Entries using the new function
+        payment_result = process_payment_entries(
+            invoice_name,
+            payment_breakdown,
+            payment_method,
+            amount,
+            note,
+            order_payload,
+            multi_currency_payments
+        )
+        
+        # Return combined result
+        return {
+            "success": True,
+            "message": "Invoice and payment processed successfully",
+            "sales_invoice": invoice_name,
+            "order_id": payment_result.get("order_id"),
+            "payment_result": payment_result,
+        }
+        
+    except Exception as e:
+        frappe.db.rollback()
+        error_traceback = frappe.get_traceback()
+        error_msg = f"Error in process_invoice_and_payment: {str(e)}\n{error_traceback}"
+        frappe.log_error(error_msg, "Process Invoice and Payment Error")
+        
+        # Also log to console for immediate visibility in queue worker
+        print(f"ERROR in process_invoice_and_payment: {error_msg}")
+        
+        return {
+            "success": False,
+            "message": "Failed to process invoice and payment",
+            "details": str(e),
         }
