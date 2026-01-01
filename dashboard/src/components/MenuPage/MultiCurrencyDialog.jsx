@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,6 +30,8 @@ export default function MultiCurrencyDialog({
   onOpenChange,
   total,
   setPaymentDialogOpenState,
+  cartItems = [],
+  orderPayload = null,
 }) {
   const BASE_TOTAL = total || 0;
   const { exchangeRates: defaultExchangeRates } = useCurrencyExchange();
@@ -40,6 +42,29 @@ export default function MultiCurrencyDialog({
   const { submitPayment, loading, error, success } = useMultiCurrencyPayment();
   const clearCart = useCartStore((state) => state.clearCart);
   const [loadingRates, setLoadingRates] = useState(true);
+  
+  // Get cart items from store if not provided as prop
+  const cartStoreItems = useCartStore((state) => state.cart || []);
+  // Format cart items to ensure they have the right structure
+  const itemsToUse = useMemo(() => {
+    const items = cartItems && cartItems.length > 0 ? cartItems : cartStoreItems;
+    if (!items || items.length === 0) {
+      console.warn("MultiCurrencyDialog: No cart items found", { cartItems, cartStoreItems });
+      return [];
+    }
+    // Ensure items are in the correct format for the API
+    const formattedItems = items.map(item => ({
+      name: item.name || item.item_code || item.item_name,
+      item_code: item.item_code || item.name || item.item_name,
+      item_name: item.item_name || item.name,
+      quantity: item.quantity || item.qty || 1,
+      qty: item.qty || item.quantity || 1,
+      price: item.price || item.rate || item.standard_rate || 0,
+      rate: item.rate || item.price || item.standard_rate || 0,
+    }));
+    console.log("MultiCurrencyDialog: Formatted cart items", formattedItems);
+    return formattedItems;
+  }, [cartItems, cartStoreItems]);
 
   const { register, watch, setValue, reset, setFocus, control, handleSubmit } =
     useForm({
@@ -421,8 +446,19 @@ export default function MultiCurrencyDialog({
                               }
                             });
                             
+                            // Validate that we have cart items
+                            if (!itemsToUse || itemsToUse.length === 0) {
+                              toast.error("No items in cart", {
+                                description: "Please add items to cart before making payment.",
+                                duration: 5000,
+                              });
+                              return;
+                            }
+                            
                             await submitPayment({
                               payments: paymentData,
+                              cartItems: itemsToUse,
+                              orderPayload: orderPayload,
                             });
 
                             onOpenChange(false);
