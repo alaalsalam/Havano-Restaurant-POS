@@ -773,7 +773,8 @@ def convert_quotation_to_sales_invoice_from_cart(
     table=None,
     waiter=None,
     customer_name=None,
-):
+):  
+    print(f"the quotation name is {quotation_name}")
     """Update quotation with new items (if changed), convert to Sales Invoice, create payment and HA Order.
 
     Args:
@@ -952,6 +953,10 @@ def convert_quotation_to_sales_invoice_from_cart(
                     "message": "Failed to convert quotation to sales invoice",
                     "details": "make_sales_invoice returned None or empty",
                 }
+            quotation = frappe.get_doc("Quotation", quotation_name)
+            quotation.custom_ordered = 1  # mark as ordered
+            quotation.save(ignore_permissions=True)
+            frappe.db.commit()
         except Exception as convert_err:
             error_msg = str(convert_err)
             error_type = type(convert_err).__name__
@@ -964,6 +969,8 @@ def convert_quotation_to_sales_invoice_from_cart(
                 "details": error_msg,
                 "error_type": error_type,
             }
+
+        # -------------------------------manually converting the sales invoice from quotation---------------------------
 
         # Save and submit the sales invoice
         try:

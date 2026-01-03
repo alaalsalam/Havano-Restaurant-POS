@@ -1,5 +1,4 @@
 import { create } from "zustand";
-
 import { db } from "@/lib/frappeClient";
 
 export const useTransactionStore = create((set) => ({
@@ -22,39 +21,33 @@ export const useTransactionStore = create((set) => ({
     transactionItems: [] 
   }),
   setSelectedTransaction: (transaction) => set({ selectedTransaction: transaction }),
-
   fetchTransactions: async (doctype, dateFilter = null) => {
     set({ loading: true, error: null });
     try {
-      // Only handle Quotation now
       const dateField = "transaction_date";
       const fields = ["name", "party_name", "customer_name", "grand_total", "status", dateField, "currency", "creation"];
-      
-      // Build filters - Frappe uses array format for filters
-      const filters = [];
+      // Build filters
+      const filters = [
+        // ["docstatus", "=", 1] ,// Only Submitted
+        ["custom_ordered", "!=", 1]
+      ];
+
       if (dateFilter) {
-        // Filter by date - use transaction_date for Quotation
         filters.push([dateField, "=", dateFilter]);
       }
-      
       const data = await db.getDocList("Quotation", {
         fields: fields,
         filters: filters.length > 0 ? filters : undefined,
-        orderBy: {
-          field: "creation",
-          order: "desc",
-        },
+        orderBy: { field: "creation", order: "desc" },
         limit: 100,
       });
-      
-      // Map the data to a consistent format
+
       const mappedData = data.map((item) => ({
         ...item,
         posting_date: item.transaction_date || item.posting_date,
-        // For Quotation, use customer_name if available, otherwise party_name
         customer: item.customer_name || item.party_name || "",
       }));
-      
+
       set({ transactions: mappedData, loading: false });
     } catch (err) {
       console.error("Transaction fetch error:", err);
