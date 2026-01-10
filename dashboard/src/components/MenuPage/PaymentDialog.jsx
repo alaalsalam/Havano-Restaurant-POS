@@ -235,7 +235,7 @@ export default function PaymentDialog({
           }
 
           // Use queue system for async processing (background)
-          await createInvoiceAndPaymentQueue(
+          const res = await createInvoiceAndPaymentQueue(
             cartItems,
             finalCustomer,
             paymentBreakdown.length > 0 ? paymentBreakdown : null,
@@ -244,6 +244,31 @@ export default function PaymentDialog({
             fullNote,
             payload
           );
+          console.log("direct-----------------DD--------", res.sales_invoice)
+          try {
+                  console.log("Payment successful bro:", res.sales_invoice);
+                  const invoiceJson = await get_invoice_json(res.sales_invoice);
+                  console.log("Invoice JSON returned from backend:", invoiceJson);
+                  // Convert JSON to string
+                  const jsonStr = JSON.stringify(invoiceJson, null, 2);
+                  // Create a blob and download (optimized: async download)
+                  const blob = new Blob([jsonStr], { type: "text/plain" });
+                  const link = document.createElement("a");
+                  link.href = URL.createObjectURL(blob);
+                  link.download = `${res.sales_invoice}.txt`;
+                  document.body.appendChild(link);
+                  link.click();
+                  // Cleanup asynchronously (non-blocking)
+                  setTimeout(() => {
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
+                  }, 0);
+              } 
+          catch (error) {
+                console.error("Error fetching invoice JSON:", error);
+                // Continue with payment even if JSON fetch fails
+                }
+
         }
       } catch (err) {
         // Log error but don't block user (payment already shown as successful)

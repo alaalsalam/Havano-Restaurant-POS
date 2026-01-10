@@ -3,7 +3,6 @@ import { call } from "@/lib/frappeClient";
 import { useCartStore } from "@/stores/useCartStore";
 import { getDefaultCustomer } from "@/lib/utils";
 import { createInvoiceAndPaymentQueue, get_invoice_json } from "@/lib/utils";
-// import { createInvoiceAndPaymentQueue, makePaymentForTransaction, get_invoice_json } from "@/lib/utils";
 
 function useMultiCurrencyPayment() {
 	const [loading, setLoading] = useState(false);
@@ -79,9 +78,7 @@ function useMultiCurrencyPayment() {
 
 			setSuccess(true);
 			try {
-				console.log("Payment successful bro:", res.sales_invoice);
 				const invoiceJson = await get_invoice_json(res.sales_invoice);
-				console.log("Invoice JSON returned from backend:", invoiceJson);
 				// Convert JSON to string
 				const jsonStr = JSON.stringify(invoiceJson, null, 2);
 				// Create a blob and download (optimized: async download)
