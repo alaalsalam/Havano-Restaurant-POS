@@ -276,7 +276,6 @@ export default function PaymentDialog({
       }
     })();
   };
-
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Enter") {
