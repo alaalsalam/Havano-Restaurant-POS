@@ -9,18 +9,28 @@ export const useMenuStore = create((set) => ({
   error: null,
 
   // Fetch all menu items
-  fetchMenuItems: async () => {
-    set({ loading: true, error: null });
-    try {
-      const data = await db.getDocList("Item", {
-			fields: ["name", "standard_rate", "item_name", "custom_menu_category", "item_group"],
-			filters:  [
-						["custom_do_not_show_in_pos", "=", 0],
-						["disabled", "=", 0],
-				  ],
-			limit: 0,
-		});
-      set({ menuItems: data, loading: false });
+fetchMenuItems: async () => {
+  set({ loading: true, error: null });
+  try {
+// 1️⃣ Fetch all items
+const data = await db.getDocList("Item", {
+  fields: ["name", "standard_rate", "item_name", "custom_menu_category", "item_group"],
+  filters: [
+    ["custom_do_not_show_in_pos", "=", 0],
+    ["disabled", "=", 0],
+  ],
+  limit: 0,
+  });
+
+    const res = await fetch("/api/method/havano_restaurant_pos.api.get_menu_items_with_user_prices", {
+      method: "GET",
+      credentials: "include",
+    });
+    const pricedItems = (await res.json()).message;
+
+    console.log("Menu Items with User Prices:", pricedItems);
+
+      set({ menuItems: pricedItems, loading: false });
     } catch (err) {
       console.error("Fetch error:", err);
       set({ error: err.message, loading: false });

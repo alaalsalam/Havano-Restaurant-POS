@@ -3293,6 +3293,47 @@ def make_multi_currency_payment(customer, payments):
             "details": f"{error_type}: {error_msg}",
         }
 
+@frappe.whitelist()
+def get_menu_items_with_user_prices():
+    """
+    Returns all menu items with their prices according to the logged-in user's pricelist.
+    """
+    user = frappe.session.user
+    settings = frappe.get_single("HA POS Settings")
+
+    # get user's pricelist
+    user_price_list = None
+    for row in settings.user_mapping:
+        if row.user == user:
+            user_price_list = row.price_list
+            break
+
+    # fetch all menu items visible in POS
+    items = frappe.get_all(
+        "Item",
+        filters={
+            "custom_do_not_show_in_pos": 0,
+            "disabled": 0
+        },
+        fields=["name", "item_name", "item_group", "custom_menu_category", "standard_rate"]
+    )
+
+    # fetch item prices in one go
+    item_prices = {}
+    if user_price_list:
+        price_data = frappe.get_all(
+            "Item Price",
+            filters={"price_list": user_price_list},
+            fields=["item_code", "price_list_rate"]
+        )
+        item_prices = {p.item_code: p.price_list_rate for p in price_data}
+
+    # attach price to each item
+    for item in items:
+        item["standard_rate"] = item_prices.get(item["name"], item["standard_rate"])
+
+    return items
+    
 
 @frappe.whitelist()
 def create_invoice_and_payment_queue(payload=None, **kwargs):
