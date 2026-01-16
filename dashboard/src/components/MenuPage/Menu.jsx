@@ -5,7 +5,7 @@ import MenuItemCard from "@/components/MenuPage/MenuItemCard";
 import { useMenuContext } from "@/contexts/MenuContext";
 
 import { useAgents } from "@/hooks";
-
+import ShiftDialog from "@/components/ui/ShiftDialog"; // adjust path if needed
 import {
   Select,
   SelectContent,
@@ -21,6 +21,10 @@ import { Button } from "../ui/button";
 import { CreateProductBundleDialog } from "../ui/CreateProductBundleDialog";
 
 const Menu = () => {
+  const [shiftDialogOpen, setShiftDialogOpen] = useState(false);
+  const [shiftType, setShiftType] = useState("open"); // "open", "continue", "close"
+  const [hasActiveShift, setHasActiveShift] = useState(true);
+
   const {
     fetchMenuItems,
     selectedCategory,
@@ -136,13 +140,35 @@ const Menu = () => {
     }
   }, [openMixDialog])
 
-  useEffect(() => {
-    if (!openMixDialog && target === "menu") {
-      requestAnimationFrame(() => {
-        searchInputRef.current?.focus();
+useEffect(() => {
+  const fetchShiftStatus = async () => {
+    try {
+      const res = await fetch("/api/method/havano_restaurant_pos.api.get_user_shift_status", {
+        method: "GET",
+        credentials: "include",
       });
+
+      const data = await res.json();
+      console.log("Shift status response:", data);
+
+      const status = data.message?.status || "open";
+      setShiftType(status);
+
+      // show dialog only if user can open or continue shift
+      if (status === "open" || status === "continue") {
+        setShiftDialogOpen(true);
+      } else {
+        setShiftDialogOpen(false); // shift is recent, no need to force
+      }
+
+    } catch (err) {
+      console.error("Failed to fetch shift status:", err);
     }
-  }, [openMixDialog, target]);
+  };
+
+  fetchShiftStatus();
+}, []);
+
 
   
   return (
@@ -159,6 +185,7 @@ const Menu = () => {
           >
             Mix (F3)
           </Button>
+
           <Select
             value={transactionType}
             onValueChange={setTransactionType}
@@ -295,8 +322,15 @@ const Menu = () => {
           setOpenMixDialog(false);
         }}
       />
+      <ShiftDialog
+      open={shiftDialogOpen}
+      type={shiftType}
+      onOpenChange={setShiftDialogOpen}
+      onShiftAction={(action, msg) => console.log(action, msg)}
+    />
     </>
   );
 };
+
 
 export default Menu;

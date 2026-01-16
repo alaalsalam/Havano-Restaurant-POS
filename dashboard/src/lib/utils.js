@@ -603,6 +603,20 @@ export async function getCustomers() {
   }
 }
 
+export async function openShift() {
+  return attemptWithRetries(async () => {
+    const { message } = await call.post("havano_restaurant_pos.api.open_shift", {});
+    return message;
+  }, "Open shift");
+}
+
+export async function closeShift() {
+  return attemptWithRetries(async () => {
+    const { message } = await call.post("havano_restaurant_pos.api.close_shift", {});
+    return message;
+  }, "Close shift");
+}
+
 export async function getSpecies() {
   try {
     const results = await db.getDocList("Species",

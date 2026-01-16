@@ -3333,7 +3333,7 @@ def get_menu_items_with_user_prices():
         item["standard_rate"] = item_prices.get(item["name"], item["standard_rate"])
 
     return items
-    
+
 
 @frappe.whitelist()
 def create_invoice_and_payment_queue(payload=None, **kwargs):
@@ -3809,3 +3809,111 @@ def process_invoice_and_payment(
             "message": "Failed to process invoice and payment",
             "details": str(e),
         }
+
+# havano_restaurant_pos/api/shift.py
+import frappe
+from frappe import _  
+from datetime import datetime, timedelta
+
+@frappe.whitelist(allow_guest=False)
+def get_user_shift_status():
+    """
+    Returns the current shift status for the logged-in user.
+    Possible responses:
+    - "open": user has no open shift
+    - "continue": user has an open shift older than 24h
+    - "close": user has an open shift within 24h
+    """
+    user = frappe.session.user
+    now = datetime.now()
+
+    # get latest open shift for user
+    shift = frappe.get_all(
+        "HA POS Shift",
+        filters={"user": user, "status": "Open"},
+        order_by="shift_start desc",
+        limit_page_length=1,
+        fields=["name", "shift_start"]
+    )
+
+    if not shift:
+        # no open shift, user should open one
+        return {"status": "open"}
+
+    # there is an open shift
+    shift_start = shift[0].shift_start
+    if not isinstance(shift_start, datetime):
+        shift_start = frappe.utils.get_datetime(shift_start)
+
+    hours_open = (now - shift_start).total_seconds() / 3600
+
+    if hours_open > 24:
+        print("-------------------old")
+        return {"status": "continue", "shift_name": shift[0].name}
+    else:
+        print("-------------------not old")
+        return {"status": "close", "shift_name": shift[0].name}
+
+
+
+from frappe.utils import now_datetime  #
+
+@frappe.whitelist(allow_guest=False)
+def open_shift():
+    frappe.local.form_dict._no_csrf = True  # disables CSRF for this request
+
+    user = frappe.session.user
+    if user == "Guest":
+        frappe.throw(_("Guest users cannot open shifts"))
+
+    existing_shift = frappe.get_all(
+        "HA POS Shift",
+        filters={"user": user, "status": "Open"},
+        limit=1
+    )
+
+    if existing_shift:
+        return {"status": "already_open", "message": "You already have an open shift."}
+
+    shift_doc = frappe.get_doc({
+        "doctype": "HA POS Shift",
+        "user": user,
+        "status": "Open",
+        "shift_start": now_datetime(),  # ✅ set current date & time
+    })
+    shift_doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"status": "open", "message": "Shift successfully opened."}
+
+from frappe.utils import now_datetime
+import frappe
+
+@frappe.whitelist(allow_guest=False)
+def close_shift():
+    """
+    Closes the latest open shift for the current user.
+    """
+    user = frappe.session.user
+    if user == "Guest":
+        frappe.throw(_("Guest users cannot close shifts"))
+
+    # get latest open shift
+    shift = frappe.get_all(
+        "HA POS Shift",
+        filters={"user": user, "status": "Open"},
+        order_by="shift_start desc",
+        limit_page_length=1,
+        fields=["name", "shift_start"]
+    )
+
+    if not shift:
+        return {"status": "no_open_shift", "message": "You have no open shift to close."}
+
+    shift_doc = frappe.get_doc("HA POS Shift", shift[0].name)
+    shift_doc.status = "Close"
+    shift_doc.shift_end = now_datetime()  # optional: track end time
+    shift_doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"status": "closed", "message": "Shift successfully closed."}
