@@ -1304,7 +1304,7 @@ def create_transaction(
             "details": str(e),
         }
 
-
+@frappe.whitelist()
 def process_payment_for_transaction_background(
     doctype,
     docname,
