@@ -16,6 +16,7 @@ import {
   formatCurrency,
   getCurrentUserFullName,
   getNumberOfOrders,
+  isRestaurantMode,
 } from "@/lib/utils";
 import { useCartStore } from "@/stores/useCartStore";
 import { useMenuStore } from "@/stores/useMenuStore";
@@ -26,6 +27,7 @@ const Home = () => {
   const { menuItems, fetchMenuItems } = useMenuStore();
   const [userName, setUserName] = useState(null);
   const [popularItems, setPopularItems] = useState([]);
+  const [restModeEnabled, setRestModeEnabled] = useState(false);
 
 
   useEffect(() => {
@@ -45,6 +47,23 @@ const Home = () => {
     };
 
     loadUserName();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadRestaurantMode = async () => {
+      try {
+        const enabled = await isRestaurantMode();
+        if (!cancelled) setRestModeEnabled(Boolean(enabled));
+      } catch (err) {
+        console.error("Failed to load Restaurant Mode:", err);
+        if (!cancelled) setRestModeEnabled(false);
+      }
+    };
+    loadRestaurantMode();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -125,7 +144,19 @@ const Home = () => {
               </div>
             </div>
             <div className="flex items-center gap-4 py-8">
-              <Button size="lg" onClick={() => navigate("/tables")}>
+              <Button
+                size="lg"
+                disabled={!restModeEnabled}
+                onClick={() => {
+                  if (!restModeEnabled) return;
+                  navigate("/tables");
+                }}
+                title={
+                  restModeEnabled
+                    ? "Dine In"
+                    : "Enable Restaurant Mode in HA POS Settings to use Dine In"
+                }
+              >
                 DINE IN
               </Button>
               <Button
