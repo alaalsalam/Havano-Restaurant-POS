@@ -4033,6 +4033,36 @@ def create_invoice_and_payment_queue(payload=None, **kwargs):
                 "details": str(inv_error),
             }
         
+        # Check if payment method is credit - if so, commit invoice before creating HA Order
+        is_credit = False
+        try:
+            # Check for credit payment method
+            if payment_method:
+                is_credit = is_payment_method_credit(payment_method)
+            elif payment_breakdown and isinstance(payment_breakdown, list):
+                # Check if any payment in breakdown is credit
+                for p in payment_breakdown:
+                    if isinstance(p, dict) and float(p.get("amount", 0) or 0) > 0:
+                        if is_payment_method_credit(p.get("payment_method")):
+                            is_credit = True
+                            break
+            elif multi_currency_payments and isinstance(multi_currency_payments, dict):
+                # Check if any payment in multi-currency is credit
+                for _, info in multi_currency_payments.items():
+                    if isinstance(info, dict) and float(info.get("amount", 0) or 0) > 0:
+                        if is_payment_method_credit(info.get("mode")):
+                            is_credit = True
+                            break
+        except Exception as credit_check_error:
+            # If credit check fails, log but continue (assume not credit)
+            frappe.log_error(f"Error checking credit status: {str(credit_check_error)}", "Credit Check Error")
+            is_credit = False
+        
+        # For credit payments, commit invoice immediately so it's available when creating HA Order
+        if is_credit:
+            frappe.db.commit()
+            frappe.logger().info(f"Committed invoice {invoice_name} for credit payment before HA Order creation")
+        
         # 2. Process payment entries (try background, fallback to synchronous)
         # Try to enqueue in background first, but if queue fails, process immediately
         payment_processed_async = False
