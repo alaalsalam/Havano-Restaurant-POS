@@ -4024,6 +4024,9 @@ def create_invoice_and_payment_queue(payload=None, **kwargs):
                     "message": "Failed to create sales invoice",
                     "details": f"Sales invoice creation returned no name. Response: {inv}",
                 }
+            
+            # Commit invoice immediately so it's available for subsequent operations
+            frappe.db.commit()
         except Exception as inv_error:
             error_msg = f"Error creating sales invoice: {str(inv_error)}\n{frappe.get_traceback()}"
             frappe.log_error(error_msg, "Create Invoice and Payment - Invoice Creation Error")
@@ -4033,7 +4036,139 @@ def create_invoice_and_payment_queue(payload=None, **kwargs):
                 "details": str(inv_error),
             }
         
-        # 2. Process payment entries (try background, fallback to synchronous)
+        # 2. Check if all payment methods are credit - if so, skip payment entry processing
+        all_credit = False
+        if multi_currency_payments and isinstance(multi_currency_payments, dict):
+            # Check all payment methods in multi-currency payments
+            credit_count = 0
+            total_count = 0
+            for key, payment_info in multi_currency_payments.items():
+                if isinstance(payment_info, dict):
+                    method = payment_info.get("mode", "Cash")
+                    amount_val = float(payment_info.get("amount", 0))
+                    if amount_val > 0:
+                        total_count += 1
+                        try:
+                            if is_payment_method_credit(method):
+                                credit_count += 1
+                        except Exception:
+                            pass
+            all_credit = (credit_count > 0 and credit_count == total_count)
+        elif payment_breakdown and isinstance(payment_breakdown, list) and len(payment_breakdown) > 0:
+            # Check all payment methods in breakdown
+            credit_count = 0
+            total_count = 0
+            for payment in payment_breakdown:
+                method = payment.get("payment_method") or payment.get("mode")
+                amount_val = float(payment.get("amount", 0))
+                if amount_val > 0:
+                    total_count += 1
+                    try:
+                        if is_payment_method_credit(method):
+                            credit_count += 1
+                    except Exception:
+                        pass
+            all_credit = (credit_count > 0 and credit_count == total_count)
+        elif payment_method:
+            # Single payment method
+            try:
+                all_credit = is_payment_method_credit(payment_method)
+            except Exception:
+                all_credit = False
+        
+        # If all payment methods are credit, skip payment entry processing and just create HA Order
+        if all_credit:
+            # Commit invoice first to ensure it's available
+            frappe.db.commit()
+            
+            # Create HA Order directly without payment entry processing
+            payment_result = {
+                "success": True,
+                "message": "Credit payment - no payment entries created",
+                "credit_payment": True,
+            }
+            
+            # Create HA Order if order_payload provided
+            if order_payload:
+                try:
+                    def safe(value):
+                        if not value:
+                            return ""
+                        return str(value)[:140]
+
+                    if isinstance(order_payload, str):
+                        import json
+                        order_payload = json.loads(order_payload)
+                    
+                    # Check if an order was already created for this invoice
+                    existing_order = frappe.db.get_value(
+                        "HA Order",
+                        {"sales_invoice": invoice_name},
+                        "name"
+                    )
+                    
+                    if existing_order:
+                        payment_result["order_id"] = existing_order
+                    else:
+                        # Create new order
+                        order = frappe.new_doc("HA Order")
+                        
+                        # Get customer from invoice if available
+                        if frappe.db.exists("Sales Invoice", invoice_name):
+                            invoice = frappe.get_doc("Sales Invoice", invoice_name)
+                            customer = invoice.customer
+                        else:
+                            customer = order_payload.get("customer_name") or ""
+                        
+                        order.order_type = safe(order_payload.get("order_type"))
+                        order.customer_name = safe(order_payload.get("customer_name") or customer)
+                        order.table = safe(order_payload.get("table"))
+                        order.waiter = safe(order_payload.get("waiter"))
+                        order.order_status = "Closed"
+                        order.sales_invoice = invoice_name
+                        
+                        # Add order items
+                        for item in order_payload.get("order_items", []):
+                            menu_item = item.get("name") or item.get("item_code") or item.get("item_name") or item.get("menu_item")
+                            if not menu_item:
+                                continue
+                            
+                            order.append(
+                                "order_items",
+                                {
+                                    "menu_item": safe(menu_item),
+                                    "qty": item.get("quantity") or 1,
+                                    "rate": item.get("price") or item.get("rate") or 0,
+                                    "amount": (item.get("price") or item.get("rate") or 0) * (item.get("quantity") or 1),
+                                    "preparation_remark": safe(item.get("remark")),
+                                },
+                            )
+                        
+                        # Insert and submit order
+                        if order.order_items and len(order.order_items) > 0:
+                            frappe.flags.ignore_validate = True
+                            try:
+                                order.insert(ignore_permissions=True)
+                                if order.order_status == "Closed" and order.docstatus == 0:
+                                    order.submit()
+                                payment_result["order_id"] = order.name
+                            finally:
+                                frappe.flags.ignore_validate = False
+                        
+                        frappe.db.commit()
+                except Exception as order_error:
+                    frappe.log_error(f"Error creating HA Order for credit payment: {str(order_error)}\n{frappe.get_traceback()}", "Credit Payment - Order Creation Error")
+                    payment_result["order_error"] = str(order_error)
+            
+            return {
+                "success": True,
+                "message": "Sales invoice created successfully. Credit payment - no payment entries created.",
+                "sales_invoice": invoice_name,
+                "payment_result": payment_result,
+                "credit_payment": True,
+            }
+        
+        # 3. Process payment entries (try background, fallback to synchronous) - only for non-credit payments
         # Try to enqueue in background first, but if queue fails, process immediately
         payment_processed_async = False
         job_id = None
@@ -4075,6 +4210,9 @@ def create_invoice_and_payment_queue(payload=None, **kwargs):
         # Process payment entries synchronously (either as fallback or always for reliability)
         # This ensures payments are always created even if queue worker isn't running
         try:
+            # Commit invoice first to ensure it's available
+            frappe.db.commit()
+            
             payment_result = process_payment_entries(
                 invoice_name,
                 payment_breakdown,
@@ -4151,9 +4289,57 @@ def process_payment_entries(
                 "details": error_msg,
             }
         
-        # Create Payment Entries
-        result = None
-        try:
+        # Check if all payment methods are credit - if so, skip payment entry creation
+        all_credit = False
+        if multi_currency_payments and isinstance(multi_currency_payments, dict):
+            # Check all payment methods in multi-currency payments
+            credit_count = 0
+            total_count = 0
+            for key, payment_info in multi_currency_payments.items():
+                if isinstance(payment_info, dict):
+                    method = payment_info.get("mode", "Cash")
+                    amount_val = float(payment_info.get("amount", 0))
+                    if amount_val > 0:
+                        total_count += 1
+                        try:
+                            if is_payment_method_credit(method):
+                                credit_count += 1
+                        except Exception:
+                            pass
+            all_credit = (credit_count > 0 and credit_count == total_count)
+        elif payment_breakdown and isinstance(payment_breakdown, list) and len(payment_breakdown) > 0:
+            # Check all payment methods in breakdown
+            credit_count = 0
+            total_count = 0
+            for payment in payment_breakdown:
+                method = payment.get("payment_method") or payment.get("mode")
+                amount_val = float(payment.get("amount", 0))
+                if amount_val > 0:
+                    total_count += 1
+                    try:
+                        if is_payment_method_credit(method):
+                            credit_count += 1
+                    except Exception:
+                        pass
+            all_credit = (credit_count > 0 and credit_count == total_count)
+        elif payment_method:
+            # Single payment method
+            try:
+                all_credit = is_payment_method_credit(payment_method)
+            except Exception:
+                all_credit = False
+        
+        # If all payment methods are credit, skip payment entry creation
+        if all_credit:
+            result = {
+                "success": True,
+                "message": "Credit payment - no payment entries created",
+                "credit_payment": True,
+            }
+        else:
+            # Create Payment Entries
+            result = None
+            try:
             if multi_currency_payments and isinstance(multi_currency_payments, dict):
                 # Multi-currency payment (from MultiCurrencyDialog)
                 # Convert multi_currency_payments format to payment_breakdown format
@@ -4244,11 +4430,20 @@ def process_payment_entries(
                     order_id = existing_order
                     frappe.logger().info(f"HA Order {order_id} already exists for invoice {invoice_name}, skipping creation")
                 else:
+                    # Verify invoice exists before trying to get it
+                    if not frappe.db.exists("Sales Invoice", invoice_name):
+                        error_msg = f"Sales Invoice {invoice_name} not found when creating HA Order"
+                        frappe.log_error(error_msg, "Process Payment Entries - Invoice Not Found")
+                        # Still try to create order without invoice reference
+                        frappe.logger().warning(f"Creating HA Order without invoice reference: {invoice_name}")
+                        customer = order_payload.get("customer_name") or ""
+                    else:
+                        # Get customer from invoice if not in payload
+                        invoice = frappe.get_doc("Sales Invoice", invoice_name)
+                        customer = invoice.customer
+                    
                     # Create new order
                     order = frappe.new_doc("HA Order")
-                    
-                    # Get customer from invoice if not in payload
-                    invoice = frappe.get_doc("Sales Invoice", invoice_name)
                     customer = invoice.customer
                     
                     order.order_type = safe(order_payload.get("order_type"))
