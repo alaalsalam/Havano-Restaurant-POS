@@ -1879,6 +1879,8 @@ def process_payment_for_transaction_background(
         created_payments = []
         remaining_outstanding = float(outstanding_amount)
         error_messages = []  # Collect error messages for debugging
+        credit_payments_total = 0  # Track total credit payments
+        credit_payments_count = 0  # Track number of credit payments
 
         for payment_info in payments_list:
             method = payment_info.get("payment_method", "Cash")
@@ -1895,9 +1897,17 @@ def process_payment_for_transaction_background(
                 continue
 
             # Check if payment method is credit - skip payment entry creation for credit methods
-            if is_payment_method_credit(method):
+            try:
+                is_credit = is_payment_method_credit(method)
+            except Exception as credit_check_error:
+                frappe.log_error(f"Error checking credit status for {method}: {str(credit_check_error)}", "Credit Check Error")
+                is_credit = False
+            
+            if is_credit:
                 # For credit methods, just reduce outstanding but don't create payment entry
                 remaining_outstanding -= paid_amount
+                credit_payments_total += paid_amount
+                credit_payments_count += 1
                 continue
 
             # Validate mode of payment exists and get default account
@@ -2182,6 +2192,17 @@ def process_payment_for_transaction_background(
             frappe.db.rollback()
 
         if not created_payments:
+            # Check if all payments were credit (which is expected behavior - no payment entries needed)
+            if credit_payments_count > 0 and credit_payments_count == len([p for p in payments_list if float(p.get("amount", 0)) > 0]):
+                # All payments were credit - this is expected, return success
+                return {
+                    "success": True,
+                    "message": f"Credit payment processed successfully for {doctype} {docname}",
+                    "details": f"All payment methods were credit. Total credit amount: {credit_payments_total}. No payment entries created as expected.",
+                    "payment_entry": None,
+                    "credit_payment": True,
+                }
+            
             # Provide more detailed error message with actual errors
             error_details = "No payment entries were created. "
             if not payments_list:
@@ -2945,6 +2966,19 @@ def process_multi_currency_payment_background(customer, payments):
             if paid_amount <= 0:
                 continue
 
+            # Check if payment method is credit - skip payment entry creation for credit methods
+            try:
+                is_credit = is_payment_method_credit(method)
+            except Exception as credit_check_error:
+                frappe.log_error(f"Error checking credit status for {method}: {str(credit_check_error)}", "Credit Check Error")
+                is_credit = False
+            
+            if is_credit:
+                # For credit methods, skip payment entry creation
+                credit_payments_total += paid_amount
+                credit_payments_count += 1
+                continue
+
             original_method = method
             
             mode_exists = frappe.db.exists("Mode of Payment", method) if method else False
@@ -3133,6 +3167,18 @@ def process_multi_currency_payment_background(customer, payments):
             frappe.db.rollback()
 
         if not created_payments:
+            # Check if all payments were credit (which is expected behavior - no payment entries needed)
+            total_valid_payments = len([p for p in payments.items() if float((p[1].get("amount", 0) if isinstance(p[1], dict) else p[1]) or 0) > 0])
+            if credit_payments_count > 0 and credit_payments_count == total_valid_payments:
+                # All payments were credit - this is expected, return success
+                return {
+                    "success": True,
+                    "message": "Credit payment processed successfully",
+                    "details": f"All payment methods were credit. Total credit amount: {credit_payments_total}. No payment entries created as expected.",
+                    "payment_entries": [],
+                    "credit_payment": True,
+                }
+            
             return {
                 "success": False,
                 "message": "Failed to create payment entries",
@@ -3466,6 +3512,9 @@ def make_multi_currency_payment(customer, payments):
 
         # Process each payment (payments format: {key: {mode, currency, amount}})
         # Use same logic as make_payment_for_transaction
+        credit_payments_total = 0  # Track total credit payments
+        credit_payments_count = 0  # Track number of credit payments
+        
         try:
             payments_items = payments.items()
         except (AttributeError, TypeError) as e:
@@ -3494,6 +3543,19 @@ def make_multi_currency_payment(customer, payments):
                 continue
 
             if paid_amount <= 0:
+                continue
+
+            # Check if payment method is credit - skip payment entry creation for credit methods
+            try:
+                is_credit = is_payment_method_credit(method)
+            except Exception as credit_check_error:
+                frappe.log_error(f"Error checking credit status for {method}: {str(credit_check_error)}", "Credit Check Error")
+                is_credit = False
+            
+            if is_credit:
+                # For credit methods, skip payment entry creation
+                credit_payments_total += paid_amount
+                credit_payments_count += 1
                 continue
 
             # Validate mode of payment exists and get default account
@@ -3715,6 +3777,18 @@ def make_multi_currency_payment(customer, payments):
             frappe.db.rollback()
 
         if not created_payments:
+            # Check if all payments were credit (which is expected behavior - no payment entries needed)
+            total_valid_payments = len([p for p in payments.items() if float((p[1].get("amount", 0) if isinstance(p[1], dict) else p[1]) or 0) > 0])
+            if credit_payments_count > 0 and credit_payments_count == total_valid_payments:
+                # All payments were credit - this is expected, return success
+                return {
+                    "success": True,
+                    "message": "Credit payment processed successfully",
+                    "details": f"All payment methods were credit. Total credit amount: {credit_payments_total}. No payment entries created as expected.",
+                    "payment_entries": [],
+                    "credit_payment": True,
+                }
+            
             return {
                 "success": False,
                 "message": "Failed to create payment entries",
