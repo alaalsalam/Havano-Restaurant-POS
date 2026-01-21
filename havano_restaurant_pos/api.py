@@ -4141,13 +4141,18 @@ def process_payment_entries(
     """
     frappe.set_user("Administrator")  # Ensure proper permissions in background job
     try:
-        # Verify invoice exists
-        if not frappe.db.exists("Sales Invoice", invoice_name):
-            error_msg = f"Sales Invoice {invoice_name} not found"
+        # Verify invoice exists (Sales Invoice is expected; allow POS Invoice as a fallback)
+        invoice_doctype = None
+        if frappe.db.exists("Sales Invoice", invoice_name):
+            invoice_doctype = "Sales Invoice"
+        elif frappe.db.exists("POS Invoice", invoice_name):
+            invoice_doctype = "POS Invoice"
+        else:
+            error_msg = f"Invoice {invoice_name} not found (neither Sales Invoice nor POS Invoice)"
             frappe.log_error(error_msg, "Process Payment Entries")
             return {
                 "success": False,
-                "message": "Sales invoice not found",
+                "message": "Invoice not found",
                 "details": error_msg,
             }
         
@@ -4222,6 +4227,34 @@ def process_payment_entries(
         order_id = None
         if order_payload:
             try:
+                # Decide whether this is a credit payment (single or multi-payment).
+                # For credit payments we keep HA Order "Open" (not submitted).
+                def is_credit_payment():
+                    try:
+                        # Multi-currency: {key: {mode, currency, amount}}
+                        if multi_currency_payments and isinstance(multi_currency_payments, dict):
+                            for _, info in multi_currency_payments.items():
+                                if isinstance(info, dict) and float(info.get("amount", 0) or 0) > 0:
+                                    if is_payment_method_credit(info.get("mode")):
+                                        return True
+                            return False
+
+                        # Breakdown: [{"payment_method": "...", "amount": ...}, ...]
+                        if payment_breakdown and isinstance(payment_breakdown, list):
+                            for p in payment_breakdown:
+                                if isinstance(p, dict) and float(p.get("amount", 0) or 0) > 0:
+                                    if is_payment_method_credit(p.get("payment_method")):
+                                        return True
+                            return False
+
+                        # Single method
+                        return bool(is_payment_method_credit(payment_method))
+                    except Exception:
+                        # Be safe: default to non-credit if detection fails
+                        return False
+
+                credit_payment = is_credit_payment()
+
                 def safe(value):
                     if not value:
                         return ""
@@ -4248,17 +4281,37 @@ def process_payment_entries(
                     order = frappe.new_doc("HA Order")
                     
                     # Get customer from invoice if not in payload
-                    invoice = frappe.get_doc("Sales Invoice", invoice_name)
-                    customer = invoice.customer
+                    # NOTE: This function can run in the background queue; be defensive about races.
+                    customer = None
+                    try:
+                        invoice = frappe.get_doc(invoice_doctype, invoice_name)
+                        customer = getattr(invoice, "customer", None)
+                    except frappe.DoesNotExistError:
+                        # If invoice isn't visible yet (commit race) or was deleted, continue with payload-only data.
+                        frappe.log_error(
+                            f"Invoice {invoice_name} not found when loading {invoice_doctype} during HA Order creation; continuing without invoice fields",
+                            "Process Payment Entries - Invoice Missing For Order"
+                        )
+                        order_id = None
+                        invoice = None
+                    except Exception as inv_load_error:
+                        frappe.log_error(
+                            f"Error loading invoice {invoice_doctype} {invoice_name} for HA Order creation: {str(inv_load_error)}\n{frappe.get_traceback()}",
+                            "Process Payment Entries - Invoice Load Error"
+                        )
+                        order_id = None
+                        invoice = None
                     
                     order.order_type = safe(order_payload.get("order_type"))
-                    order.customer_name = safe(order_payload.get("customer_name") or customer)
+                    order.customer_name = safe(order_payload.get("customer_name") or customer or "")
                     order.table = safe(order_payload.get("table"))
                     order.waiter = safe(order_payload.get("waiter"))
-                    order.order_status = "Closed"
+                    order.order_status = "Open" if credit_payment else "Closed"
                     # Link to sales invoice to prevent duplicates (if field exists)
                     if hasattr(order, 'sales_invoice'):
-                        order.sales_invoice = invoice_name
+                        # Only link if the invoice record exists (avoid link validation issues)
+                        if frappe.db.exists(invoice_doctype, invoice_name):
+                            order.sales_invoice = invoice_name
                     
                     # Add order items - menu_item is mandatory, so skip items without it
                     for item in order_payload.get("order_items", []):
@@ -4296,7 +4349,7 @@ def process_payment_entries(
                         try:
                             # Try to insert the order
                             order.insert(ignore_permissions=True)
-                            # Submit order if status is Closed
+                            # Submit order only if status is Closed
                             if order.order_status == "Closed" and order.docstatus == 0:
                                 order.submit()
                             order_id = order.name
