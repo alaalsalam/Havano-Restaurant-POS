@@ -78,6 +78,7 @@ const TableDetails = () => {
     loadingTableDetails,
     errorTableDetails,
     fetchTableDetails,
+    fetchTables,
   } = useTableStore();
 
   const { startTableOrder, loadCartFromOrder, clearCart } = useCartStore();
@@ -243,6 +244,8 @@ const TableDetails = () => {
       if (id) {
         await fetchTableOrders(id);
         await fetchTableDetails(id);
+        // Refresh tables list to reflect latest changes
+        await fetchTables();
       }
     }
   };
