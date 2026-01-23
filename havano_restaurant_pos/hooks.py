@@ -276,7 +276,13 @@ fixtures = [
         "filters": [
             ["name", "in", [
                 "Quotation-custom_ordered",
-                "Sales Invoice Item-custom_is_kitchen_item"
+                "Sales Invoice Item-custom_is_kitchen_item",
+                "Item-custom_is_order_item_1",
+                "Item-custom_is_order_item_2",
+                "Item-custom_is_order_item_3",
+                "Item-custom_is_order_item_4",
+                "Item-custom_is_order_item_5",
+                "Item-custom_is_order_item_6",
             ]]
         ]
     },

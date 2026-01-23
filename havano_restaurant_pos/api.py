@@ -2356,13 +2356,30 @@ def make_payment_for_transaction(
             "details": f"{error_type}: {error_msg}",
         }
 
+
 @frappe.whitelist()
-def is_kitchen_item(item_name):
-    # Get the value of custom_order_item for this item
-    custom_flag = frappe.db.get_value("Item", item_name, "custom_order_item")
+def item_is_orders(item_name):
+    # Get the item document
+    item = frappe.get_doc("Item", item_name)
     
-    # Return True if it's checked, else False
-    return bool(custom_flag)
+    # List of custom fields to check
+    custom_fields = [
+        "custom_is_order_item_1",
+        "custom_is_order_item_2",
+        "custom_is_order_item_3",
+        "custom_is_order_item_4",
+        "custom_is_order_item_5",
+        "custom_is_order_item_6",
+    ]
+    
+    # Build a dictionary with field names as keys and their boolean values
+    custom_flags = {
+        f"Item-{field}": bool(getattr(item, field, 0))
+        for field in custom_fields
+    }
+    
+    return custom_flags
+
 
 @frappe.whitelist()
 def get_invoice_json(invoice_name):
@@ -2426,18 +2443,21 @@ def get_invoice_json(invoice_name):
 
         # Build item list
         items = []
-        items = []
         for item in invoice.items:
+            # Call your function to get the custom flags
+            custom_flags = item_is_orders(item.item_code)  # returns the dict we made earlier
+            
+            # Append the item with all fields
             items.append({
                 "ProductName": item.item_name,
                 "productid": item.item_code,
                 "Qty": flt(item.qty),
                 "Price": flt(item.rate),
-                "IsKitchenItem": is_kitchen_item(item.item_code),
                 "Amount": flt(item.amount),
                 "tax_type": getattr(item, "tax_type", "VAT"),
                 "tax_rate": str(getattr(item, "tax_rate", 15.0)),
                 "tax_amount": str(getattr(item, "tax_amount", 0.0)),
+                **custom_flags  # merge the flags from your function
             })
 
         data = {
