@@ -11,7 +11,7 @@
   "address_line_1",
   "address_line_2",
   "column_break_tkhp",
-  "city",
+  "phone",
   "company_name"
  ],
  "fields": [
@@ -32,11 +32,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "city",
-   "fieldtype": "Data",
-   "label": "Phone"
-  },
-  {
    "fieldname": "address_line_1",
    "fieldtype": "Data",
    "label": "Address Line 1"
@@ -51,12 +46,17 @@
    "fieldtype": "Link",
    "label": "Company Name",
    "options": "Company"
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-01-23 17:21:22.458026",
+ "modified": "2026-01-24 10:55:15.719878",
  "modified_by": "Administrator",
  "module": "Havano Restaurant Pos",
  "name": "Cost Center Details",

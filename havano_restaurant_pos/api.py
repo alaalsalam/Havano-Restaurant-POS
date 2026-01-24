@@ -2384,6 +2384,40 @@ def item_is_orders(item_name):
 @frappe.whitelist()
 def get_invoice_json(invoice_name):
     try:
+        user = frappe.session.user
+        settings = frappe.get_single("HA POS Settings")
+        cost_center_name = None
+        for row in settings.user_mapping:
+            if row.user == user:
+                cost_center_name = row.cost_center
+                break
+        cost_center_doc = frappe.get_value(
+        "Cost Center Details",
+        {"cost_center": cost_center_name},
+        [
+            "cost_center",
+            "email",
+            "address_line_1",
+            "address_line_2",
+            "phone",
+            "company_name",
+        ],
+        as_dict=True
+        )
+
+        if not cost_center_doc:
+            frappe.throw(f"No Cost Center Details found for {cost_center_name}")
+
+        email = cost_center_doc.email
+        address_line_1 = cost_center_doc.address_line_1
+        address_line_2 = cost_center_doc.address_line_2
+        phone = cost_center_doc.phone
+        company_name = cost_center_doc.company_name
+
+
+        print(f"email: {email}, address_line_1: {address_line_1}, address_line_2: {address_line_2}, phone: {phone}, company_name: {company_name}")
+
+                
         invoice = frappe.get_doc("Sales Invoice", invoice_name)
         company = frappe.get_doc("Company", invoice.company)
 
@@ -2461,16 +2495,17 @@ def get_invoice_json(invoice_name):
             })
 
         data = {
-            "CompanyName": company.company_name,
-            "CompanyAddress": company_address,
+            "CompanyName": company_name or company.company_name,
+            "CompanyEmail": cost_center_doc.email or "",
+            "CompanyAddressLine1": cost_center_doc.address_line_1 or "",
+            "CompanyAddressLine2": cost_center_doc.address_line_2 or "",
+            "Tel": cost_center_doc.phone or "",
             "City": company_city,
             "State": company_state,
             "postcode": company_pincode,
             "contact": getattr(company, "phone_no", None) or getattr(company, "phone", None) or "",
-            "CompanyEmail": getattr(company, "email_id", None) or "",
             "TIN": getattr(company, "tax_id", None) or "",
             "VATNo": getattr(company, "vat", None) or "",
-            "Tel": getattr(company, "phone_no", None) or getattr(company, "phone", None) or "",
             "InvoiceNo": invoice.name,
             "InvoiceDate": invoice.creation.strftime("%Y-%m-%d"),
             "CashierName": invoice.owner,
