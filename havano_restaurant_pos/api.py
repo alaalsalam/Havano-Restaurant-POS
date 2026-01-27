@@ -241,6 +241,8 @@ def get_number_of_items(item_group=None):
 @frappe.whitelist()
 def create_order_from_cart(payload):
     """Create an order from the cart"""
+
+    print(f"------------------------Order {payload}")
     try:
         if isinstance(payload, str):
             import json
@@ -308,6 +310,47 @@ def create_order_from_cart(payload):
             "message": "Failed to create order",
             "details": str(e),
         }
+
+import json 
+@frappe.whitelist()
+def download_order_json_by_order_id():
+    """
+    Download the HA Order as JSON by passing order_id via GET/POST.
+    Can be called from browser like:
+    window.open(`/api/method/havano_restaurant_pos.api.download_order_json_by_order_id?order_id=HA-123`, "_blank")
+    """
+    order_id = frappe.form_dict.get("order_id")
+    if not order_id:
+        frappe.throw("Order ID is required")
+
+    # Fetch HA Order
+    order = frappe.get_doc("HA Order", order_id)
+
+    # Build JSON payload
+    order_json = {
+        "order_id": order.name,
+        "order_type": order.order_type,
+        "customer_name": order.customer_name,
+        "table": order.table,
+        "waiter": order.waiter,
+        "order_status": order.order_status,
+        "order_items": [],
+    }
+
+    # Add items
+    for item in order.get("order_items", []):
+        order_json["order_items"].append({
+            "menu_item": item.menu_item,
+            "qty": item.qty,
+            "rate": item.rate,
+            "amount": item.amount,
+            "preparation_remark": item.preparation_remark,
+        })
+
+    # Pretty print JSON for browser download
+    frappe.local.response.filename = f"{order_id}.txt"
+    frappe.local.response.filecontent = json.dumps(order_json, indent=2, ensure_ascii=False, default=str)
+    frappe.local.response.type = "download"
 
 
 @frappe.whitelist()

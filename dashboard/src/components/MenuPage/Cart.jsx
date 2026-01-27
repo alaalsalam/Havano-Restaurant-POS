@@ -248,6 +248,11 @@ const Cart = () => {
           const result = await handleCreateOrder(payload);
           
           if (result && result.success !== false) {
+            console.log("order-------------------"+result.order_id);
+            window.open(
+  `/api/method/havano_restaurant_pos.api.download_order_json_by_order_id?order_id=${result.order_id}`,
+  "_blank"
+);
             toast.success("Order created successfully", {
               description: result.order_id ? `Order ID: ${result.order_id}` : "Order placed",
               duration: 4000,
