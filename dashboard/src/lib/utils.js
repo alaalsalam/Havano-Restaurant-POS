@@ -674,7 +674,19 @@ export async function checkStock(itemName) {
     return message;
   }, `Check stock for ${itemName}`);
 }
+export async function addRemark(remark) {
+  if (!remark || !remark.trim()) {
+    throw new Error("Remark cannot be empty");
+  }
 
+  return attemptWithRetries(async () => {
+    const { message } = await call.post(
+      "havano_restaurant_pos.api.add_remark",
+      { remark_text: remark.trim() } // <-- send the remark text here
+    );
+    return message;
+  }, "Add Remark");
+}
 export async function getSpecies() {
   try {
     const results = await db.getDocList("Species",

@@ -14,6 +14,7 @@ import { useCartStore } from "@/stores/useCartStore";
 import Keyboard from "../ui/Keyboard";
 import OnScreenKeyboard from "../ui/OnScreenKeyboard";
 import { useItemPreparationRemark } from "@/hooks";
+import { addRemark } from "@/lib/utils";
 
 import { useState } from "react";
 const UpdateCartDialog = () => {
@@ -62,19 +63,36 @@ const UpdateCartDialog = () => {
     }
   }, [selectedItem, reset]);
 
-  const handleConfirm = handleSubmit(({ price, quantity, remark }) => {
-    if (!selectedItem?.name) return;
-    updateCartItem({
-      ...selectedItem,
-      price: Number(price),
-      quantity: Number(quantity),
-      remark,
-    });
-    setShowRemarkKeyboard(false);
-    setShowQuantityKeyboard(true);
-    closeUpdateDialog();
+const handleConfirm = handleSubmit(async ({ price, quantity, remark, newRemark }) => {
+  if (!selectedItem?.name) return;
+
+  updateCartItem({
+    ...selectedItem,
+    price: Number(price),
+    quantity: Number(quantity),
+    remark,
   });
-  
+
+  // If new remark exists
+  if (newRemark?.trim()) {
+    try {
+      await addRemark(newRemark.trim());
+      setRemarks((prev) => {
+        // Add new remark only if it's not already in the list
+        if (!prev.includes(newRemark.trim())) return [...prev, newRemark.trim()];
+        return prev;
+      });
+      setValue("remark", newRemark.trim()); // auto-select it in the searchable field
+    } catch (err) {
+      console.error("Failed to add new remark:", err);
+    }
+  }
+
+  setShowRemarkKeyboard(false);
+  setShowQuantityKeyboard(true);
+  closeUpdateDialog();
+});
+
   useEffect(() => {
     function handleEnter(event) {
       if (event.key === "Enter") {
@@ -215,24 +233,24 @@ const UpdateCartDialog = () => {
       onFocus={() => setShowRemarkSuggestions(true)}
       onBlur={() => setTimeout(() => setShowRemarkSuggestions(false), 150)}
       placeholder="Select or type a preparation remark..."
-      className="w-full pr-10" // space for arrow
+      className="w-full pr-10"
     />
 
     {/* Dropdown Arrow */}
-<button
-  type="button"
-  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded"
-  onMouseDown={(e) => {
-    e.preventDefault(); // prevent losing focus
-    setShowRemarkSuggestions(true); // show suggestions
-    setRemarks([...prepRemarkOptions]); // clear old and load new
-  }}
->
-  ▼
-</button>
+    <button
+      type="button"
+      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded"
+      onMouseDown={(e) => {
+        e.preventDefault(); // prevent losing focus
+        setShowRemarkSuggestions(true);
+        setRemarks([...prepRemarkOptions]); // clear old first, load fresh
+      }}
+    >
+      ▼
+    </button>
 
     {/* Suggestions Box */}
-    {showRemarkSuggestions && remarkOptions.length > 0 && (
+    {showRemarkSuggestions && Array.isArray(remarkOptions) && remarkOptions.length > 0 && (
       <div className="absolute z-50 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
         {remarkOptions.map((item) => (
           <button
@@ -284,6 +302,7 @@ const UpdateCartDialog = () => {
     </div>
   )}
 </div>
+
 
                   {/* Actions */}
                   <div className="flex gap-2 pt-2">

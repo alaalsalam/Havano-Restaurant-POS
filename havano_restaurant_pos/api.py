@@ -2419,6 +2419,33 @@ def get_stock(item_code):
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "Stock check failed")
         return {"error": str(e)}
+import frappe
+from frappe import _
+
+@frappe.whitelist(allow_guest=False)
+def add_remark(remark_text: str = None):
+    """
+    Adds a new Preparation Remark
+    """
+    if not remark_text or not remark_text.strip():
+        frappe.throw(_("Remark cannot be empty"))
+
+    # Check if the remark already exists
+    existing = frappe.get_all(
+        "Preparation Remark", filters={"remark": remark_text.strip()}, limit=1
+    )
+    if existing:
+        return {"status": "exists", "message": "Remark already exists"}
+
+    # Create new document
+    doc = frappe.get_doc({
+        "doctype": "Preparation Remark",
+        "remark": remark_text.strip()
+    })
+    doc.insert()
+    frappe.db.commit()
+
+    return {"status": "success", "remark": doc.remark}
 
 @frappe.whitelist()
 def get_invoice_json(invoice_name):
