@@ -496,7 +496,7 @@ const TableDetails = () => {
                       disabled={isMarkingPaid}
                       onClick={handleMarkAsPaid}
                     >
-                      Mark as Paid
+                      Close Table
                     </Button>
                   )}
               </CardContent>

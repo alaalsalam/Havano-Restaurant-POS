@@ -665,6 +665,19 @@ export async function closeShift() {
     return message;
   }, "Close shift");
 }
+
+export async function fetchTableOrders(table_number) {
+  return attemptWithRetries(
+    async () => {
+      const { message } = await call.post(
+        "havano_restaurant_pos.api.get_table_orders",
+        { table_number }
+      );
+      return message; // { total_orders, waiting_time }
+    },
+    "Fetch table orders"
+  );
+}
 export async function checkStock(itemName) {
   return attemptWithRetries(async () => {
     const { message } = await call.get(

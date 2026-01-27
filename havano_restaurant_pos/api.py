@@ -310,6 +310,46 @@ def create_order_from_cart(payload):
             "message": "Failed to create order",
             "details": str(e),
         }
+from datetime import datetime
+
+from datetime import datetime
+import frappe
+from frappe.utils.data import now_datetime
+
+@frappe.whitelist()
+def get_table_orders(table_number):
+    """
+    Returns:
+    - total_orders: Number of draft orders for the table
+    - waiting_time: Minutes since the last draft order was created
+    """
+    # get all draft orders for this table
+    draft_orders = frappe.get_all(
+        "HA Order",
+        filters={"table_number": table_number, "docstatus": 0},
+        fields=["name", "creation"],
+        order_by="creation asc"
+    )
+
+    total_orders = len(draft_orders)
+    waiting_time = 0
+
+    if draft_orders:
+        last_order = draft_orders[-1]  # last created draft
+        created_on = last_order.get("creation")
+        if created_on:
+            # convert creation to datetime
+            if isinstance(created_on, str):
+                created_dt = datetime.strptime(created_on, "%Y-%m-%d %H:%M:%S.%f")
+            else:
+                created_dt = created_on
+            waiting_time = int((now_datetime() - created_dt).total_seconds() / 60)
+
+    return {
+        "total_orders": total_orders,
+        "waiting_time": waiting_time
+    }
+
 
 import json 
 @frappe.whitelist()
