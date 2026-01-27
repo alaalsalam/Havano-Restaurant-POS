@@ -392,6 +392,83 @@ def download_order_json_by_order_id():
     frappe.local.response.filecontent = json.dumps(order_json, indent=2, ensure_ascii=False, default=str)
     frappe.local.response.type = "download"
 
+import frappe
+import json
+from frappe.utils import now_datetime
+from datetime import datetime
+
+@frappe.whitelist()
+def download_table_orders_json(table_number):
+    """
+    Download all draft HA Orders for a table as a single consolidated JSON.
+    Each item is merged into a final 'mega order'.
+    
+    Can be called like:
+    window.open(`/api/method/havano_restaurant_pos.api.download_table_orders_json?table_number=TBL-1`, "_blank")
+    """
+    if not table_number:
+        frappe.throw("Table number is required")
+
+    # Get all draft orders for this table
+    draft_orders = frappe.get_all(
+        "HA Order",
+        filters={"table_number": table_number, "docstatus": 0},
+        fields=["name", "creation", "customer_name", "waiter", "order_type"],
+        order_by="creation asc"
+    )
+
+    if not draft_orders:
+        frappe.throw(f"No draft orders found for table {table_number}")
+
+    # Initialize mega order
+    mega_order = {
+        "table_number": table_number,
+        "total_orders": len(draft_orders),
+        "waiting_time_minutes": 0,
+        "customer_name": None,
+        "waiter": None,
+        "order_type": None,
+        "order_items": []
+    }
+
+    # Calculate waiting time from last draft order
+    last_order_created = draft_orders[-1].get("creation")
+    if last_order_created:
+        if isinstance(last_order_created, str):
+            last_dt = datetime.strptime(last_order_created, "%Y-%m-%d %H:%M:%S.%f")
+        else:
+            last_dt = last_order_created
+        mega_order["waiting_time_minutes"] = int((now_datetime() - last_dt).total_seconds() / 60)
+
+    # Loop through orders to consolidate items
+    for order_meta in draft_orders:
+        order_doc = frappe.get_doc("HA Order", order_meta.name)
+
+        # Set customer, waiter, order_type from first order if not set
+        if not mega_order["customer_name"]:
+            mega_order["customer_name"] = order_doc.customer_name
+        if not mega_order["waiter"]:
+            mega_order["waiter"] = order_doc.waiter
+        if not mega_order["order_type"]:
+            mega_order["order_type"] = order_doc.order_type
+
+        # Merge items
+        for item in order_doc.get("order_items", []):
+            mega_order["order_items"].append({
+                "order_name": order_doc.name,
+                "menu_item": item.menu_item,
+                "qty": item.qty,
+                "rate": item.rate,
+                "amount": item.amount,
+                "preparation_remark": item.preparation_remark,
+            })
+
+    # Prepare response for browser download
+    frappe.local.response.filename = f"{table_number}_mega_order.txt"
+    frappe.local.response.filecontent = json.dumps(
+        mega_order, indent=2, ensure_ascii=False, default=str
+    )
+    frappe.local.response.type = "download"
 
 @frappe.whitelist()
 def update_order(payload):
