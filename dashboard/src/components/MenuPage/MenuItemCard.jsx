@@ -16,11 +16,11 @@ const MenuItemCard = ({ item, index }) => {
 
   const handleAddToCart = async () => {
   const stockData = await checkStock(item.name);
-  if (stockData?.stock <= 0) {
-      toast.error("Error", { description: `No stock available for ${item.item_name}` });
-      console.log("No stock found for", item.item_name);
-      return; // stop adding
-  }
+  // if (stockData?.stock <= 0) {
+  //     toast.error("Error", { description: `No stock available for ${item.item_name}` });
+  //     console.log("No stock found for", item.item_name);
+  //     return; // stop adding
+  // }
     addToCart({
       name: item.name,
       item_name: item.item_name,
