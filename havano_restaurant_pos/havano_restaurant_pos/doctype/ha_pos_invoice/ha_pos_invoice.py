@@ -84,7 +84,7 @@ def create_sales_invoice(customer, items, price_list=None):
                 "cost_center": defaults.get("cost_center"),
                 "custom_remarks": item_data.get("remarks") or ""
             })
-            print(f"remarls------------: { item_data.get("remarks") }")
+
 
         invoice.insert(ignore_permissions=True)
         invoice.submit()
