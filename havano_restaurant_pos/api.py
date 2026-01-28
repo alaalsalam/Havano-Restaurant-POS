@@ -304,6 +304,8 @@ def get_number_of_items(item_group=None):
 @frappe.whitelist()
 def create_order_from_cart(payload):
     """Create an order from the cart"""
+
+    print(f"------------------------Order {payload}")
     try:
         if isinstance(payload, str):
             import json
@@ -371,7 +373,165 @@ def create_order_from_cart(payload):
             "message": "Failed to create order",
             "details": str(e),
         }
+from datetime import datetime
 
+from datetime import datetime
+import frappe
+from frappe.utils.data import now_datetime
+
+@frappe.whitelist()
+def get_table_orders(table_number):
+    """
+    Returns:
+    - total_orders: Number of draft orders for the table
+    - waiting_time: Minutes since the last draft order was created
+    """
+    # get all draft orders for this table
+    draft_orders = frappe.get_all(
+        "HA Order",
+        filters={"table_number": table_number, "docstatus": 0},
+        fields=["name", "creation"],
+        order_by="creation asc"
+    )
+
+    total_orders = len(draft_orders)
+    waiting_time = 0
+
+    if draft_orders:
+        last_order = draft_orders[-1]  # last created draft
+        created_on = last_order.get("creation")
+        if created_on:
+            # convert creation to datetime
+            if isinstance(created_on, str):
+                created_dt = datetime.strptime(created_on, "%Y-%m-%d %H:%M:%S.%f")
+            else:
+                created_dt = created_on
+            waiting_time = int((now_datetime() - created_dt).total_seconds() / 60)
+
+    return {
+        "total_orders": total_orders,
+        "waiting_time": waiting_time
+    }
+
+
+import json 
+@frappe.whitelist()
+def download_order_json_by_order_id():
+    """
+    Download the HA Order as JSON by passing order_id via GET/POST.
+    Can be called from browser like:
+    window.open(`/api/method/havano_restaurant_pos.api.download_order_json_by_order_id?order_id=HA-123`, "_blank")
+    """
+    order_id = frappe.form_dict.get("order_id")
+    if not order_id:
+        frappe.throw("Order ID is required")
+
+    # Fetch HA Order
+    order = frappe.get_doc("HA Order", order_id)
+
+    # Build JSON payload
+    order_json = {
+        "order_id": order.name,
+        "order_type": order.order_type,
+        "customer_name": order.customer_name,
+        "table": order.table,
+        "waiter": order.waiter,
+        "order_status": order.order_status,
+        "order_items": [],
+    }
+
+    # Add items
+    for item in order.get("order_items", []):
+        order_json["order_items"].append({
+            "menu_item": item.menu_item,
+            "qty": item.qty,
+            "rate": item.rate,
+            "amount": item.amount,
+            "preparation_remark": item.preparation_remark,
+        })
+
+    # Pretty print JSON for browser download
+    frappe.local.response.filename = f"{order_id}.txt"
+    frappe.local.response.filecontent = json.dumps(order_json, indent=2, ensure_ascii=False, default=str)
+    frappe.local.response.type = "download"
+
+import frappe
+import json
+from frappe.utils import now_datetime
+from datetime import datetime
+
+@frappe.whitelist()
+def download_table_orders_json(table_number):
+    """
+    Download all draft HA Orders for a table as a single consolidated JSON.
+    Each item is merged into a final 'mega order'.
+    
+    Can be called like:
+    window.open(`/api/method/havano_restaurant_pos.api.download_table_orders_json?table_number=TBL-1`, "_blank")
+    """
+    if not table_number:
+        frappe.throw("Table number is required")
+
+    # Get all draft orders for this table
+    draft_orders = frappe.get_all(
+        "HA Order",
+        filters={"table_number": table_number, "docstatus": 0},
+        fields=["name", "creation", "customer_name", "waiter", "order_type"],
+        order_by="creation asc"
+    )
+
+    if not draft_orders:
+        frappe.throw(f"No draft orders found for table {table_number}")
+
+    # Initialize mega order
+    mega_order = {
+        "table_number": table_number,
+        "total_orders": len(draft_orders),
+        "waiting_time_minutes": 0,
+        "customer_name": None,
+        "waiter": None,
+        "order_type": None,
+        "order_items": []
+    }
+
+    # Calculate waiting time from last draft order
+    last_order_created = draft_orders[-1].get("creation")
+    if last_order_created:
+        if isinstance(last_order_created, str):
+            last_dt = datetime.strptime(last_order_created, "%Y-%m-%d %H:%M:%S.%f")
+        else:
+            last_dt = last_order_created
+        mega_order["waiting_time_minutes"] = int((now_datetime() - last_dt).total_seconds() / 60)
+
+    # Loop through orders to consolidate items
+    for order_meta in draft_orders:
+        order_doc = frappe.get_doc("HA Order", order_meta.name)
+
+        # Set customer, waiter, order_type from first order if not set
+        if not mega_order["customer_name"]:
+            mega_order["customer_name"] = order_doc.customer_name
+        if not mega_order["waiter"]:
+            mega_order["waiter"] = order_doc.waiter
+        if not mega_order["order_type"]:
+            mega_order["order_type"] = order_doc.order_type
+
+        # Merge items
+        for item in order_doc.get("order_items", []):
+            mega_order["order_items"].append({
+                "order_name": order_doc.name,
+                "menu_item": item.menu_item,
+                "qty": item.qty,
+                "rate": item.rate,
+                "amount": item.amount,
+                "preparation_remark": item.preparation_remark,
+            })
+
+    # Prepare response for browser download
+    frappe.local.response.filename = f"{table_number}_mega_order.txt"
+    frappe.local.response.filecontent = json.dumps(
+        mega_order, indent=2, ensure_ascii=False, default=str
+    )
+    frappe.local.response.type = "download"
 
 @frappe.whitelist()
 def update_order(payload):
@@ -432,6 +592,8 @@ def get_number_of_orders(menu_item):
 
 @frappe.whitelist()
 def process_table_payment(table, order_ids, total, amount=None, payment_method=None, note=None, payment_breakdown=None):
+
+    print("ITS A HIT")
     """Process payment for all orders in a table.
     
     Creates sales invoice, payment entry, updates HA Orders, submits orders, marks as closed.
@@ -593,6 +755,7 @@ def process_table_payment(table, order_ids, total, amount=None, payment_method=N
                         mode_account = mode_accounts[0].default_account
                 
                 # Create payment entry for non-credit total
+                print("Creating payment entry for non-credit total:1")
                 payment_entry = frappe.new_doc("Payment Entry")
                 payment_entry.payment_type = "Receive"
                 payment_entry.party_type = "Customer"
@@ -664,6 +827,7 @@ def process_table_payment(table, order_ids, total, amount=None, payment_method=N
                         mode_account = mode_accounts[0].default_account
                 
                 # Create payment entry
+                print("Creating payment entry for non-credit total 22",)
                 payment_entry = frappe.new_doc("Payment Entry")
                 payment_entry.payment_type = "Receive"
                 payment_entry.party_type = "Customer"
@@ -2085,8 +2249,24 @@ def process_payment_for_transaction_background(
 
             # Create payment entry
             try:
+                print("payment entry creation started for method:11")
+                try:
+                    user = frappe.session.user
+                    # get latest open shift for user
+                    shift = frappe.get_all(
+                        "HA Shift POS",
+                        filters={"user": user, "status": "Open"},
+                        order_by="shift_start desc",
+                        limit_page_length=1,
+                        fields=["name", "shift_start"]
+                    )
+                except Exception as e:
+                    print("Error fetching shift:", e)
+                    shift = None
+
                 payment_entry = frappe.new_doc("Payment Entry")
                 payment_entry.payment_type = "Receive"
+                payment_entry.custom_shift = shift[0].name if shift else None
                 payment_entry.party_type = "Customer"
                 payment_entry.party = customer
                 payment_entry.company = company
@@ -2431,17 +2611,116 @@ def make_payment_for_transaction(
             "details": f"{error_type}: {error_msg}",
         }
 
+
 @frappe.whitelist()
-def is_kitchen_item(item_name):
-    # Get the value of custom_order_item for this item
-    custom_flag = frappe.db.get_value("Item", item_name, "custom_order_item")
+def item_is_orders(item_name):
+    # Get the item document
+    item = frappe.get_doc("Item", item_name)
     
-    # Return True if it's checked, else False
-    return bool(custom_flag)
+    # List of custom fields to check
+    custom_fields = [
+        "custom_is_order_item_1",
+        "custom_is_order_item_2",
+        "custom_is_order_item_3",
+        "custom_is_order_item_4",
+        "custom_is_order_item_5",
+        "custom_is_order_item_6",
+    ]
+    
+    # Build a dictionary with field names as keys and their boolean values
+    custom_flags = {
+        f"Item-{field}": bool(getattr(item, field, 0))
+        for field in custom_fields
+    }
+    
+    return custom_flags
+
+@frappe.whitelist()
+def get_stock(item_code):
+    """
+    Returns the current stock for a given item code.
+    """
+    if not item_code:
+        return {"error": "Item code is required"}
+
+    try:
+        # Replace 'Bin' with your actual stock table if different
+        stock_entry = frappe.db.get_value(
+            "Bin",
+            {"item_code": item_code},
+            ["actual_qty"],
+            as_dict=True
+        )
+        qty = stock_entry.get("actual_qty") if stock_entry else 0
+        return {"item_code": item_code, "stock": qty}
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Stock check failed")
+        return {"error": str(e)}
+import frappe
+from frappe import _
+
+@frappe.whitelist(allow_guest=False)
+def add_remark(remark_text: str = None):
+    """
+    Adds a new Preparation Remark
+    """
+    if not remark_text or not remark_text.strip():
+        frappe.throw(_("Remark cannot be empty"))
+
+    # Check if the remark already exists
+    existing = frappe.get_all(
+        "Preparation Remark", filters={"remark": remark_text.strip()}, limit=1
+    )
+    if existing:
+        return {"status": "exists", "message": "Remark already exists"}
+
+    # Create new document
+    doc = frappe.get_doc({
+        "doctype": "Preparation Remark",
+        "remark": remark_text.strip()
+    })
+    doc.insert()
+    frappe.db.commit()
+
+    return {"status": "success", "remark": doc.remark}
 
 @frappe.whitelist()
 def get_invoice_json(invoice_name):
     try:
+        user = frappe.session.user
+        settings = frappe.get_single("HA POS Settings")
+        cost_center_name = None
+        for row in settings.user_mapping:
+            if row.user == user:
+                cost_center_name = row.cost_center
+                break
+        cost_center_doc = frappe.get_value(
+        "Cost Center Details",
+        {"cost_center": cost_center_name},
+        [
+            "cost_center",
+            "email",
+            "address_line_1",
+            "address_line_2",
+            "phone",
+            "company_name",
+        ],
+        as_dict=True
+        )
+
+        if not cost_center_doc:
+            frappe.throw(f"No Cost Center Details found for {cost_center_name}")
+
+        email = cost_center_doc.email
+        address_line_1 = cost_center_doc.address_line_1
+        address_line_2 = cost_center_doc.address_line_2
+        phone = cost_center_doc.phone
+        company_name = cost_center_doc.company_name
+
+
+        print(f"email: {email}, address_line_1: {address_line_1}, address_line_2: {address_line_2}, phone: {phone}, company_name: {company_name}")
+
+                
         invoice = frappe.get_doc("Sales Invoice", invoice_name)
         company = frappe.get_doc("Company", invoice.company)
 
@@ -2501,31 +2780,36 @@ def get_invoice_json(invoice_name):
 
         # Build item list
         items = []
-        items = []
         for item in invoice.items:
+            # Call your function to get the custom flags
+            custom_flags = item_is_orders(item.item_code)  # returns the dict we made earlier
+            
+            # Append the item with all fields
             items.append({
                 "ProductName": item.item_name,
                 "productid": item.item_code,
                 "Qty": flt(item.qty),
                 "Price": flt(item.rate),
-                "IsKitchenItem": is_kitchen_item(item.item_code),
                 "Amount": flt(item.amount),
                 "tax_type": getattr(item, "tax_type", "VAT"),
                 "tax_rate": str(getattr(item, "tax_rate", 15.0)),
                 "tax_amount": str(getattr(item, "tax_amount", 0.0)),
+                "remarks": item.get("custom_remarks", ""),
+                **custom_flags  # merge the flags from your function
             })
 
         data = {
-            "CompanyName": company.company_name,
-            "CompanyAddress": company_address,
+            "CompanyName": company_name or company.company_name,
+            "CompanyEmail": cost_center_doc.email or "",
+            "CompanyAddressLine1": cost_center_doc.address_line_1 or "",
+            "CompanyAddressLine2": cost_center_doc.address_line_2 or "",
+            "Tel": cost_center_doc.phone or "",
             "City": company_city,
             "State": company_state,
             "postcode": company_pincode,
             "contact": getattr(company, "phone_no", None) or getattr(company, "phone", None) or "",
-            "CompanyEmail": getattr(company, "email_id", None) or "",
             "TIN": getattr(company, "tax_id", None) or "",
             "VATNo": getattr(company, "vat", None) or "",
-            "Tel": getattr(company, "phone_no", None) or getattr(company, "phone", None) or "",
             "InvoiceNo": invoice.name,
             "InvoiceDate": invoice.creation.strftime("%Y-%m-%d"),
             "CashierName": invoice.owner,
@@ -2566,29 +2850,35 @@ def get_invoice_json(invoice_name):
     except Exception as e:
         frappe.throw("Error generating invoice JSON: {0}".format(str(e)))
 
-# @frappe.whitelist()
-# def download_invoice_json(invoice_name):
-#     print("in download function")
-#     data = get_invoice_json(invoice_name)  # reuse your existing function
-#     print(data)
-#     frappe.local.response.filename = f"{invoice_name}.json"
+# @frappe.whitelist(allow_guest=True)
+# def download_invoice_json():
+#     invoice_name = frappe.form_dict.get("name")  # GET param: ?name=ACC-SINV-2026-00129
+#     if not invoice_name:
+#         frappe.throw("Invoice name required")
+
+#     invoice = frappe.get_doc("Sales Invoice", invoice_name)
+#     # ... build data like you already do ...
+#     data = get_invoice_json(invoice_name)
+
+#     frappe.local.response.filename = f"{invoice_name}.txt"
 #     frappe.local.response.filecontent = frappe.as_json(data)
 #     frappe.local.response.type = "download"
 
 @frappe.whitelist(allow_guest=True)
 def download_invoice_json():
-    invoice_name = frappe.form_dict.get("name")  # GET param: ?name=ACC-SINV-2026-00129
+    invoice_name = frappe.form_dict.get("name")  # GET param
     if not invoice_name:
         frappe.throw("Invoice name required")
 
-    invoice = frappe.get_doc("Sales Invoice", invoice_name)
-    # ... build data like you already do ...
+    receipt_type = frappe.form_dict.get("receipt_type") 
+
     data = get_invoice_json(invoice_name)
+    # merge in the receipt type
+    data["ReceiptType"] = receipt_type
 
     frappe.local.response.filename = f"{invoice_name}.txt"
     frappe.local.response.filecontent = frappe.as_json(data)
     frappe.local.response.type = "download"
-
 
 @frappe.whitelist()
 def generate_quotation_json(quote_id):
@@ -2802,6 +3092,7 @@ def save_item_preparation_remark(item, remark):
 
 @frappe.whitelist()
 def get_item_preparation_remarks(item):
+    print("hit----------------+++==")
     try:
         if not item:
             return {"success": False, "remarks": [], "error": "Item is required"}
@@ -2817,11 +3108,12 @@ def get_item_preparation_remarks(item):
 
         prep_remarks = frappe.get_all("Preparation Remark", pluck="remark")
 
-        remarks = [
-            row.remark for row in item_doc.custom_preparation_remark if row.remark
-        ]
+        # remarks = [
+        #     row.remark for row in item_doc.custom_preparation_remark if row.remark
+        # ]
+        print(prep_remarks)
 
-        return {"success": True, "remarks": remarks, "prep_remarks": prep_remarks}
+        return {"success": True,"prep_remarks": prep_remarks}
 
     except Exception as e:
         frappe.log_error(
@@ -3818,6 +4110,7 @@ def make_multi_currency_payment(customer, payments):
                         pass
                     
                     # Recreate payment entry
+                    print("creating a payment entry here ----------------------------------------")
                     payment_entry = frappe.new_doc("Payment Entry")
                     payment_entry.payment_type = "Receive"
                     payment_entry.party_type = "Customer"
@@ -4013,7 +4306,9 @@ def create_invoice_and_payment_queue(payload=None, **kwargs):
             item_code = item.get("name") or item.get("item_code") or item.get("item_name")
             qty = item.get("quantity") or item.get("qty") or 1
             rate = item.get("price") or item.get("rate") or 0
-            items.append({"item_code": item_code, "qty": qty, "rate": rate})
+            remarks = item.get("remark")
+            items.append({"item_code": item_code, "qty": qty, "rate": rate, "remarks": remarks})
+          
         
         if not items:
             return {
@@ -4600,6 +4895,7 @@ def process_invoice_and_payment(
             order_payload,
             multi_currency_payments
         )
+        print("Creating payment entry for non-credit total:", non_credit_total)
         
         # Return combined result
         return {

@@ -535,32 +535,41 @@ const TableDetails = () => {
                     </div>
                   </div>
                 </form>
+                
                 {tableDetails?.status === "Available" && (
                   <Button className="bg-gray-300 hover:bg-gray-200 text-black" block>
                     Book Table
                   </Button>
                 )}
-                {tableDetails?.status === "Occupied" &&
-                  tableOrders.length === 0 && (
-                    <Button
-                      className="bg-gray-300 hover:bg-gray-200 text-black"
-                      block
-                      onClick={handleUnassignTable}
-                    >
-                      Unassign Table
-                    </Button>
-                  )}
-                {tableDetails?.status === "Occupied" &&
-                  tableOrders.length > 0 && (
-                    <Button
-                      className="bg-gray-300 hover:bg-gray-200 text-black"
-                      block
-                      disabled={isMarkingPaid}
-                      onClick={handleMarkAsPaid}
-                    >
-                      Mark as Paid
-                    </Button>
-                  )}
+                {tableDetails?.status === "Occupied" && tableOrders.length > 0 && (
+  <div className="flex gap-2 mb-4">
+    {/* Close Table */}
+    <Button
+      className="bg-gray-300 hover:bg-gray-200 text-black flex-1"
+      onClick={handleMarkAsPaid}
+      disabled={isMarkingPaid}
+    >
+      Close Table
+    </Button>
+
+    {/* Print Bill */}
+    <Button
+      className="bg-blue-500 hover:bg-blue-400 text-white flex-1"
+      onClick={() => {
+        if (!tableDetails?.table_number) return;
+        window.open(
+          `/api/method/havano_restaurant_pos.api.download_table_orders_json?table_number=${tableDetails.table_number}`,
+          "_blank"
+        );
+      }} // define this function to handle printing
+    >
+      Print Bill
+    </Button>
+  </div>
+)}
+
+              
+
               </CardContent>
             </Card>
           </div>

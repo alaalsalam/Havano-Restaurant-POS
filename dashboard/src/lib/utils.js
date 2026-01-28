@@ -687,6 +687,40 @@ export async function closeShift() {
   }, "Close shift");
 }
 
+export async function fetchTableOrders(table_number) {
+  return attemptWithRetries(
+    async () => {
+      const { message } = await call.post(
+        "havano_restaurant_pos.api.get_table_orders",
+        { table_number }
+      );
+      return message; // { total_orders, waiting_time }
+    },
+    "Fetch table orders"
+  );
+}
+export async function checkStock(itemName) {
+  return attemptWithRetries(async () => {
+    const { message } = await call.get(
+      "havano_restaurant_pos.api.get_stock",
+      { item_code: itemName } // pass item_name as param
+    );
+    return message;
+  }, `Check stock for ${itemName}`);
+}
+export async function addRemark(remark) {
+  if (!remark || !remark.trim()) {
+    throw new Error("Remark cannot be empty");
+  }
+
+  return attemptWithRetries(async () => {
+    const { message } = await call.post(
+      "havano_restaurant_pos.api.add_remark",
+      { remark_text: remark.trim() } // <-- send the remark text here
+    );
+    return message;
+  }, "Add Remark");
+}
 export async function getSpecies() {
   try {
     const results = await db.getDocList("Species",

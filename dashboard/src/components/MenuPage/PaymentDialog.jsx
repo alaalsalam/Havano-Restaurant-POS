@@ -12,6 +12,7 @@ import Keyboard from "@/components/ui/Keyboard";
 import { Textarea } from "@/components/ui/textarea";
 import { createInvoiceAndPaymentQueue, makePaymentForTransaction, get_invoice_json, processTablePayment } from "@/lib/utils";
 import { db, call } from "@/lib/frappeClient";
+import { useCartStore } from "@/stores/useCartStore";
 
 export default function PaymentDialog({
   open,
@@ -32,6 +33,8 @@ export default function PaymentDialog({
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(true);
   const [total, setTotal] = useState(0);
   const [openMultiCurrencyDialog, setOpenMultiCurrencyDialog] = useState(false);
+
+  const { selectedReceipt } = useCartStore();
 
   
 
@@ -276,7 +279,7 @@ export default function PaymentDialog({
             fullNote,
             payload
           );
-          console.log("direct-----------------DD--------", res.sales_invoice)
+          console.log("direct-----------------DD--------",cartItems)
           
           // For Dine In orders, no invoice is created, so skip invoice download
           if (res.dine_in_only) {
@@ -287,7 +290,9 @@ export default function PaymentDialog({
               console.log("Payment successful bro:", res.sales_invoice);
               // const invoiceJson = await get_invoice_json(res.sales_invoice);
               // console.log("Invoice JSON returned from backend:", invoiceJson);
-              window.open(`/api/method/havano_restaurant_pos.api.download_invoice_json?name=${res.sales_invoice}`, "_blank");
+                window.open(
+              `/api/method/havano_restaurant_pos.api.download_invoice_json?name=${res.sales_invoice}&receipt_type=${selectedReceipt}`,
+              "_blank")
               
               // Convert JSON to string
               // const jsonStr = JSON.stringify(invoiceJson, null, 2);

@@ -23,6 +23,26 @@ def get_pos_user_defaults():
             }
 
     return None
+
+def get_last_open_shift_for_current_user():
+    current_user = frappe.session.user
+    
+    shift = frappe.get_all(
+        "HA Shift POS",
+        filters={
+            "user": current_user,
+            "status": "Open"
+        },
+        order_by="shift_start desc",
+        limit_page_length=1
+    )
+    
+    if shift:
+        return shift[0]  # Last open shift
+    else:
+        return None      # No open shift found
+ 
+
 @frappe.whitelist()
 def create_sales_invoice(customer, items, price_list=None):
     """Create a new sales invoice"""
@@ -30,7 +50,8 @@ def create_sales_invoice(customer, items, price_list=None):
     import frappe
 
     try:
-        print("SAVING INVOICE --------------------------")
+               
+        last_shift = get_last_open_shift_for_current_user()
         print("Price List:", price_list)
         print("Customer:", customer)
         print("Items:", items)
@@ -49,10 +70,11 @@ def create_sales_invoice(customer, items, price_list=None):
             "doctype": "Sales Invoice",
             "customer": customer,
             "cost_center": defaults.get("cost_center"),
+            "custom_shift_number": last_shift or "",
             "selling_price_list": defaults.get("price_list") or frappe.db.get_single_value("Selling Settings", "selling_price_list"),
             "items": []
         })
-
+        
         # Add items
         for item_data in items:
             invoice.append("items", {
@@ -60,7 +82,9 @@ def create_sales_invoice(customer, items, price_list=None):
                 "qty": item_data.get("qty"),
                 "rate": item_data.get("rate"),
                 "cost_center": defaults.get("cost_center"),
+                "custom_remarks": item_data.get("remarks") or ""
             })
+
 
         invoice.insert(ignore_permissions=True)
         invoice.submit()

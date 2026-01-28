@@ -16,6 +16,7 @@
   "column_break_humi",
   "customer_name",
   "table",
+  "table_number",
   "section_break_gagh",
   "order_items",
   "section_break_jxej",
@@ -129,13 +130,19 @@
    "in_list_view": 1,
    "label": "Order Status",
    "options": "Open\nClosed\nVoided"
+  },
+  {
+   "fetch_from": "table.table_number",
+   "fieldname": "table_number",
+   "fieldtype": "Data",
+   "label": "Table Number"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-10-31 11:05:31.647826",
+ "modified": "2026-01-27 16:09:01.324832",
  "modified_by": "Administrator",
  "module": "Havano Restaurant Pos",
  "name": "HA Order",
