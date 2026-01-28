@@ -247,6 +247,25 @@ def get_price_lists():
 
 
 @frappe.whitelist()
+def is_hotel_app_installed():
+    """
+    Check if Havano Hotel Management app is installed.
+    Returns simple JSON so it is easy to consume from the POS dashboard.
+    """
+    try:
+        installed = "havano_hotel_management" in frappe.get_installed_apps()
+        return {"installed": installed}
+    except Exception as e:
+        title = "Error checking Havano Hotel Management installation"
+        frappe.log_error(frappe.get_traceback(), title)
+        # Fail-safe: report not installed on error
+        return {
+            "installed": False,
+            "error": str(e),
+        }
+
+
+@frappe.whitelist()
 def search_items(search_term=None):
     """Search for items by name or code"""
     filters = {"disabled": 0}
