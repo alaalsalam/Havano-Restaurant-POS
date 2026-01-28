@@ -3017,6 +3017,7 @@ def save_item_preparation_remark(item, remark):
 
 @frappe.whitelist()
 def get_item_preparation_remarks(item):
+    print("hit----------------+++==")
     try:
         if not item:
             return {"success": False, "remarks": [], "error": "Item is required"}
@@ -3032,11 +3033,12 @@ def get_item_preparation_remarks(item):
 
         prep_remarks = frappe.get_all("Preparation Remark", pluck="remark")
 
-        remarks = [
-            row.remark for row in item_doc.custom_preparation_remark if row.remark
-        ]
+        # remarks = [
+        #     row.remark for row in item_doc.custom_preparation_remark if row.remark
+        # ]
+        print(prep_remarks)
 
-        return {"success": True, "remarks": remarks, "prep_remarks": prep_remarks}
+        return {"success": True,"prep_remarks": prep_remarks}
 
     except Exception as e:
         frappe.log_error(
