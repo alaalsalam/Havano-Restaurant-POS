@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Keyboard from "@/components/ui/Keyboard";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, fetchUserShiftPayments } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { useForm, useWatch } from "react-hook-form";
 import { DevTool } from "@hookform/devtools";
@@ -77,6 +77,24 @@ export default function MultiCurrencyDialog({
     if (error) toast.error(error);
     if (success) toast.success("Payment successful");
   }, [error, success]);
+  const [expectedPayments, setExpectedPayments] = useState({});
+  useEffect(() => {
+    if (!open) return;
+
+    const loadShiftPayments = async () => {
+      try {
+        const shiftPayments = await fetchUserShiftPayments();
+        setExpectedPayments(shiftPayments); // ✅ THIS WAS THE BUG
+        console.log("Fetched user shift payments:", shiftPayments);
+      } catch (err) {
+        console.error("Error fetching user shift payments:", err);
+        setExpectedPayments({});
+      }
+    };
+
+    loadShiftPayments();
+  }, [open]);
+
 
   // Fetch exchange rates from selected payment methods
   useEffect(() => {
@@ -216,34 +234,12 @@ export default function MultiCurrencyDialog({
       name: "payments",
     }) || {};
 
-  const getBaseValue = (paid, key) => {
-    if (!ratesAtOpen || !ratesAtOpen[key]) return 0;
+const getVariance = (paid, key) => {
+  const expected = Number(expectedPayments?.[key] || 0);
+  const submitted = Number(paid || 0);
+  return submitted - expected;
+};
 
-    const amount = Number(paid);
-    if (isNaN(amount) || amount === 0) return 0;
-
-    // Exchange rate is FROM payment currency TO company currency
-    // So to convert payment amount to base currency: divide by rate
-    // Example: 431.60 ZWG / 33.2 (ZWG to USD rate) = 13 USD
-    return amount / ratesAtOpen[key];
-  };
-
-  const totalPaidInBase = paymentMethods.reduce((sum, method) => {
-    const paid = Number(payments[method.key] || 0);
-    return sum + getBaseValue(paid, method.key);
-  }, 0);
-
-  const remainingBase = Math.max(BASE_TOTAL - totalPaidInBase, 0);
-  const changeBase = Math.max(totalPaidInBase - BASE_TOTAL, 0);
-  const isPaid = totalPaidInBase >= BASE_TOTAL;
-
-  const getAmountDue = (key) => {
-    if (!ratesAtOpen || !ratesAtOpen[key]) return 0;
-    // Exchange rate is FROM payment currency TO company currency
-    // So to convert base currency to payment currency: multiply by rate
-    // Example: 13 USD * 33.2 (ZWG to USD rate) = 431.60 ZWG
-    return remainingBase * ratesAtOpen[key];
-  };
   return (
     <>
       <style>{`
@@ -313,7 +309,7 @@ export default function MultiCurrencyDialog({
                             <TableHead>MODE</TableHead>
                             <TableHead>CURRENCY</TableHead>
                             <TableHead>EXPECTED</TableHead>
-                            <TableHead>SUBMITTED (INPUT)</TableHead>
+                            <TableHead>SUBMITTED</TableHead>
                             <TableHead>VARIANCE</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -326,8 +322,9 @@ export default function MultiCurrencyDialog({
                               <TableRow key={method.key}>
                                 <TableCell className="font-medium">{method.mode}</TableCell>
                                 <TableCell>{method.currency}</TableCell>
-                                <TableCell>{rate.toFixed(4)}</TableCell>
-
+                                <TableCell>
+                                {(expectedPayments[method.key] || 0).toFixed(2)}
+                                </TableCell>
                                 <TableCell>
                                   <Input
                                     {...register(`payments.${method.key}`)}
@@ -335,11 +332,10 @@ export default function MultiCurrencyDialog({
                                     disabled={loadingRates}
                                   />
                                 </TableCell>
-
-                                <TableCell>
-                                {getBaseValue(paid, method.key).toFixed(4)}
-                                </TableCell>
-                              </TableRow>
+                               <TableCell>
+                              {getVariance(paid, method.key).toFixed(4)}
+                            </TableCell>
+                          </TableRow>
                             );
                           })}
                         </TableBody>
@@ -373,7 +369,6 @@ export default function MultiCurrencyDialog({
                       <Button
                         className="flex-1"
                         type="submit"
-                        disabled={!isPaid || loadingRates}
                         onClick={handleSubmit(async (data) => {
                           // Convert payment keys to include mode and currency info
                           const paymentData = {};

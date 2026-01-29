@@ -5107,3 +5107,32 @@ def save_payments_to_shift(cleaned_payments):
     shift_doc.save()
     frappe.db.commit()
     frappe.msgprint("Payments saved to shift successfully!")
+
+import frappe
+from frappe.utils.data import flt
+@frappe.whitelist()
+def get_user_shift_payments(user=None):
+    """
+    Fetch all payments for the logged-in user from HA Shift POS.
+    Returns a dictionary keyed by payment_method with the total amount.
+    """
+    if not user:
+        user = frappe.session.user
+    if not user:
+        frappe.throw("No logged-in user found.")
+    
+    # Get all open shifts for this user
+    shifts = frappe.get_all(
+        "HA Shift POS",
+        filters={"user": user, "status": "Open"},
+        fields=["name"]
+    )
+
+    payments_dict = {}
+    for shift in shifts:
+        shift_doc = frappe.get_doc("HA Shift POS", shift.name)
+        for row in getattr(shift_doc, "shift_amounts", []):
+            key = row.payment_method  # only payment_method now
+            payments_dict[key] = payments_dict.get(key, 0) + flt(row.amount)
+    print(f"payment methods-------------{payments_dict}")
+    return payments_dict

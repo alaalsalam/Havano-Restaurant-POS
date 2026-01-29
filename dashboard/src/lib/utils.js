@@ -681,7 +681,6 @@ export async function getUserSettings() {
     return [];
   }
 }
-
 export async function negativeStock() {
   return attemptWithRetries(async () => {
     const { message } = await call.post("havano_restaurant_pos.api.can_use_negative_stock");
@@ -697,7 +696,20 @@ export async function savePaymentsToShift(cleanedPayments) {
     return message;
   }, "Failed to save payments to shift");
 }
+export async function fetchUserShiftPayments() {
+  return attemptWithRetries(async () => {
+    const { message } = await call.get(
+      "havano_restaurant_pos.api.get_user_shift_payments"
+    );
 
+    // message is now { Cash: 123, Card: 456 } already
+    if (message && typeof message === "object") {
+      return message;
+    }
+
+    return {};
+  }, "Failed to fetch user shift payments");
+}
 export async function openShift() {
   return attemptWithRetries(async () => {
     const { message } = await call.post("havano_restaurant_pos.api.open_shift", {});
