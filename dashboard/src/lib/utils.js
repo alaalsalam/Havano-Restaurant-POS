@@ -710,6 +710,22 @@ export async function fetchUserShiftPayments() {
     return {};
   }, "Failed to fetch user shift payments");
 }
+export async function updateUserShiftPayments(paymentData) {
+  return attemptWithRetries(async () => {
+    const { message } = await call.post(
+      "havano_restaurant_pos.api.update_my_shift_payments",
+      { payment_data: paymentData }
+    );
+
+    // message can be a success string or object from Python
+    if (message) {
+      console.log("Shift payments updated:", message);
+      return message;
+    }
+
+    return null;
+  }, "Failed to update user shift payments");
+}
 export async function openShift() {
   return attemptWithRetries(async () => {
     const { message } = await call.post("havano_restaurant_pos.api.open_shift", {});

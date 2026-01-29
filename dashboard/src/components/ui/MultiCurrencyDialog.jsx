@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Keyboard from "@/components/ui/Keyboard";
-import { cn, formatCurrency, fetchUserShiftPayments } from "@/lib/utils";
+import { cn, formatCurrency, fetchUserShiftPayments, updateUserShiftPayments } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { useForm, useWatch } from "react-hook-form";
 import { DevTool } from "@hookform/devtools";
@@ -366,62 +366,41 @@ const getVariance = (paid, key) => {
                       >
                         Cancel
                       </Button>
-                      <Button
-                        className="flex-1"
-                        type="submit"
-                        onClick={handleSubmit(async (data) => {
-                          // Convert payment keys to include mode and currency info
-                          const paymentData = {};
-                          Object.entries(data.payments || {}).forEach(([key, amount]) => {
-                            if (Number(amount) > 0) {
-                              const method = paymentMethods.find(m => m.key === key);
-                              if (method) {
-                                // Send as mode_currency: amount format
-                                paymentData[key] = {
-                                  mode: method.mode,
-                                  currency: method.currency,
-                                  amount: Number(amount)
-                                };
-                              }
-                            }
-                          });
-                          
-                          // Validate that we have cart items
-                          if (!itemsToUse || itemsToUse.length === 0) {
-                            toast.error("No items in cart", {
-                              description: "Please add items to cart before making payment.",
-                              duration: 5000,
-                            });
-                            return;
-                          }
-                          
-                          // Immediately show success and close dialog (optimistic UI)
-                          toast.success("Payment processing...", {
-                            description: "Payment is being processed in the background",
-                            duration: 2000,
-                          });
-                          
-                          onOpenChange(false);
-                          setPaymentDialogOpenState(false);
-                          clearCart();
+<Button
+  className="flex-1"
+  type="submit"
+  onClick={handleSubmit(async () => {
+    const tableData = paymentMethods.map((method) => {
+      const submitted = Number(payments[method.key] || 0);
+      const expected = Number(expectedPayments?.[method.key] || 0);
+      const variance = submitted - expected;
 
-                          // Process payment in background (fire and forget)
-                          (async () => {
-                            try {
-                              await submitPayment({
-                                payments: paymentData,
-                                cartItems: itemsToUse,
-                                orderPayload: orderPayload,
-                              });
-                            } catch (err) {
-                              // Log error but don't block user (payment already shown as successful)
-                              console.error("Payment processing error (background):", err);
-                            }
-                          })();
-                        })}
-                      >
-                        Close Payment
-                      </Button>
+      return {
+        mode: method.mode,
+        currency: method.currency,
+        expected: expected.toFixed(2),
+        submitted: submitted.toFixed(2),
+        variance: variance.toFixed(2),
+      };
+    });
+
+    console.log("=== Modal Payment Table Data ===");
+    console.table(tableData);
+    toast("Shift table data sent to backend!", { duration: 2000 });
+
+    // Call the wrapper function
+    try {
+      await updateUserShiftPayments(tableData);
+      toast.success("Shift payments updated successfully!");
+    } catch (err) {
+      console.error("Error updating shift payments:", err);
+      toast.error("Failed to update shift payments!");
+    }
+  })}
+>
+  Close Shift
+</Button>
+
                     </div>
                   </div>
                 </div>

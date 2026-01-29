@@ -6,8 +6,10 @@
  "engine": "InnoDB",
  "field_order": [
   "payment_method",
+  "amount",
   "column_break_xkwf",
-  "amount"
+  "amount_submitted",
+  "variance"
  ],
  "fields": [
   {
@@ -32,7 +34,27 @@
    "in_list_view": 1,
    "in_preview": 1,
    "in_standard_filter": 1,
-   "label": "Amount",
+   "label": "Amount (Expected)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amount_submitted",
+   "fieldtype": "Float",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Amount (Submitted)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "variance",
+   "fieldtype": "Float",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Variance",
    "read_only": 1
   }
  ],
@@ -40,7 +62,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-01-29 15:04:36.031478",
+ "modified": "2026-01-29 17:05:28.789865",
  "modified_by": "Administrator",
  "module": "Havano Restaurant Pos",
  "name": "Shift Amounts",

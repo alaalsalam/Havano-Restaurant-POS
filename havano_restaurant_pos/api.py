@@ -5136,3 +5136,38 @@ def get_user_shift_payments(user=None):
             payments_dict[key] = payments_dict.get(key, 0) + flt(row.amount)
     print(f"payment methods-------------{payments_dict}")
     return payments_dict
+
+@frappe.whitelist()
+def update_my_shift_payments(payment_data):
+    print(payment_data)
+    user = frappe.session.user
+    
+    # 1. Find active shift for logged-in user
+    shift = frappe.get_all(
+        "HA Shift POS",
+        filters={"user": user, "status": "Open"},
+        limit=1,
+        order_by="creation desc"
+    )
+    
+    if not shift:
+        frappe.throw(f"No active shift found for user {user}")
+    
+    shift_doc = frappe.get_doc("HA Shift POS", shift[0].name)
+    # 2. Update payment rows
+    for row in shift_doc.shift_amounts:
+        # find matching entry from JS tableData
+        match = next(
+            (item for item in payment_data if f"{item["mode"]}_{item["currency"]}" == row.payment_method),
+            None
+        )
+        if match:
+            row.amount_submitted = flt(match["submitted"])
+            row.variance = flt(match["variance"])
+
+    # 3. Save the document and commit
+    shift_doc.save()
+    frappe.db.commit()
+    close_shift()
+
+    frappe.msgprint(f"Shift payments updated for user {user}")
