@@ -14,11 +14,14 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Combobox } from "../ui/combobox";
+import { getUserSettings } from "@/lib/utils";
 
 import NumPad from "./UpdateCartDialog";
 import { Button } from "../ui/button";
+import { toast, Toaster } from "sonner";
 
 import { CreateProductBundleDialog } from "../ui/CreateProductBundleDialog";
+
 
 const Menu = () => {
   const [shiftDialogOpen, setShiftDialogOpen] = useState(false);
@@ -67,6 +70,20 @@ const Menu = () => {
        });
      }
    }, [target]);
+
+  
+  useEffect(() => {
+    async function checkUserSettings() {
+      const userSettings = await getUserSettings();
+
+      // If empty, user is not mapped
+      if (!userSettings || userSettings.length === 0) {
+          toast.error("Error: No user settings found for this user");
+        }
+    }
+
+    checkUserSettings();
+  }, []); // run once on mount
 
 
   useEffect(() => {

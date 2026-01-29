@@ -672,6 +672,15 @@ export async function getCustomers() {
     return [];
   }
 }
+export async function getUserSettings() {
+  try {
+    const { message } = await call.get("havano_restaurant_pos.api.is_user_mapped");
+    return message || [];
+  } catch (err) {
+    console.error("Error validating user settings:", err);
+    return [];
+  }
+}
 
 export async function openShift() {
   return attemptWithRetries(async () => {
