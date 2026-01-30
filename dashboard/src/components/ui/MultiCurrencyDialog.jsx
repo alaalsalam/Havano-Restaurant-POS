@@ -24,6 +24,8 @@ import { useCurrencyExchange, useMultiCurrencyPayment } from "@/hooks";
 import { toast, Toaster } from "sonner";
 import { useCartStore } from "@/stores/useCartStore";
 import { db, call } from "@/lib/frappeClient";
+import { useNavigate } from "react-router-dom";
+
 
 export default function MultiCurrencyDialog({
   open,
@@ -45,6 +47,7 @@ export default function MultiCurrencyDialog({
   
   // Get cart items from store if not provided as prop
   const cartStoreItems = useCartStore((state) => state.cart || []);
+  const navigate = useNavigate();
   // Format cart items to ensure they have the right structure
   const itemsToUse = useMemo(() => {
     const items = cartItems && cartItems.length > 0 ? cartItems : cartStoreItems;
@@ -366,40 +369,40 @@ const getVariance = (paid, key) => {
                       >
                         Cancel
                       </Button>
-<Button
-  className="flex-1"
-  type="submit"
-  onClick={handleSubmit(async () => {
-    const tableData = paymentMethods.map((method) => {
-      const submitted = Number(payments[method.key] || 0);
-      const expected = Number(expectedPayments?.[method.key] || 0);
-      const variance = submitted - expected;
+                      <Button
+                        className="flex-1"
+                        type="submit"
+                        onClick={handleSubmit(async () => {
+                          const tableData = paymentMethods.map((method) => {
+                            const submitted = Number(payments[method.key] || 0);
+                            const expected = Number(expectedPayments?.[method.key] || 0);
+                            const variance = submitted - expected;
 
-      return {
-        mode: method.mode,
-        currency: method.currency,
-        expected: expected.toFixed(2),
-        submitted: submitted.toFixed(2),
-        variance: variance.toFixed(2),
-      };
-    });
+                            return {
+                              mode: method.mode,
+                              currency: method.currency,
+                              expected: expected.toFixed(2),
+                              submitted: submitted.toFixed(2),
+                              variance: variance.toFixed(2),
+                            };
+                          });
 
-    console.log("=== Modal Payment Table Data ===");
-    console.table(tableData);
-    toast("Shift table data sent to backend!", { duration: 2000 });
-
-    // Call the wrapper function
-    try {
-      await updateUserShiftPayments(tableData);
-      toast.success("Shift payments updated successfully!");
-    } catch (err) {
-      console.error("Error updating shift payments:", err);
-      toast.error("Failed to update shift payments!");
-    }
-  })}
->
-  Close Shift
-</Button>
+                          console.log("=== Modal Payment Table Data ===");
+                          console.table(tableData);
+                          // Call the wrapper function
+                          try {
+                            await updateUserShiftPayments(tableData);
+                            toast.success("Shift payments updated successfully!");
+                            onOpenChange(false)
+                          } catch (err) {
+                            console.error("Error updating shift payments:", err);
+                            toast.error("Failed to update shift payments!");
+                          }
+                         window.location.href = "/dashboard";
+                        })}
+                      >
+                        Close Shift
+                      </Button>
 
                     </div>
                   </div>

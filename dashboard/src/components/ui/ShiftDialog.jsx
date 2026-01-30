@@ -69,13 +69,12 @@ const ShiftDialog = ({ open, type, onOpenChange, onShiftAction, cartItems }) => 
                       console.log("Shift opened:", data);
                       onShiftAction("open", data.message);
                       onOpenChange(false);
+                      window.location.href = "/dashboard";
                     } catch (err) {
                       console.error("Failed to open shift:", err);
                       alert("Could not open shift. Check console.");
                     }
                   } else if (btn.action === "close") {
-                    // 🔥 Instead of calling closeShift, just open PaymentDialog
-                    // onOpenChange(false);
                     setOpenPayment(true);
                   } else {
                     onOpenChange(false);
