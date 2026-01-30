@@ -77,15 +77,17 @@ def create_sales_invoice(customer, items, price_list=None):
         
         # Add items
         for item_data in items:
+            uom = item_data.get('uom')
+            if isinstance(uom, set):
+                uom = next(iter(uom))  # get the first item from the set
             invoice.append("items", {
                 "item_code": item_data.get("item_code"),
                 "qty": item_data.get("qty"),
                 "rate": item_data.get("rate"),
                 "cost_center": defaults.get("cost_center"),
-                "custom_remarks": item_data.get("remarks") or ""
+                "custom_remarks": item_data.get("remarks") or "",
+                "uom": uom
             })
-
-
         invoice.insert(ignore_permissions=True)
         invoice.submit()
 
