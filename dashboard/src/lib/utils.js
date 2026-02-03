@@ -362,6 +362,25 @@ export async function isRestaurantMode() {
   
 }
 
+export async function isRoomDirectBookingsEnabled() {
+  try {
+    const { message } = await db.getSingleValue(
+      "HA POS Settings",
+      "enable_room_direct_bookings"
+    );
+    if (message && typeof message === "object") {
+      return Boolean(message.enable_room_direct_bookings);
+    }
+    if (typeof message === "string") {
+      return Boolean(Number(message));
+    }
+    return Boolean(message);
+  } catch (err) {
+    console.error("Error fetching HA POS Settings.enable_room_direct_bookings:", err);
+    return false;
+  }
+}
+
 /**
  * Get user transaction type mappings from HA POS Setting
  * Returns array of transaction types available for the current user
