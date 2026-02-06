@@ -52,6 +52,20 @@ def create_sales_invoice(customer, items, price_list=None, change=None, multi_cu
     import frappe
 
     try:
+
+        def get_usd_exchange_rate(to_currency):
+            """Return exchange rate from USD to the given currency"""
+            if not to_currency or to_currency.upper() == "USD":
+                return 1.0
+
+            rate = frappe.db.get_value(
+                "Currency Exchange",
+                {"from_currency": "USD", "to_currency": to_currency.upper()},
+                "exchange_rate"
+            )
+            if not rate:
+                frappe.throw(f"No exchange rate found for USD → {to_currency.upper()}")
+            return float(rate)
         # --- Get last open shift ---
         last_shift = get_last_open_shift_for_current_user()
 
@@ -72,8 +86,10 @@ def create_sales_invoice(customer, items, price_list=None, change=None, multi_cu
             if len(multi_currency_payments) == 1:
                 # Single currency payment → use its currency and rate
                 only_payment = list(multi_currency_payments.values())[0]
+                rate=get_usd_exchange_rate(only_payment.get('currency', 'USD'))
                 currency = only_payment.get('currency', 'USD')
-                conversion_rate = float(only_payment.get('rate', 1.0))
+                conversion_rate = rate
+                print(f"THe conversion rate -------------================={conversion_rate}")
             else:
                 # Multiple currencies → keep default USD
                 currency = 'USD'
@@ -90,7 +106,6 @@ def create_sales_invoice(customer, items, price_list=None, change=None, multi_cu
             ),
             "custom_change": change,
             "currency": currency,
-            "conversion_rate": conversion_rate,
             "items": []
         })
 
