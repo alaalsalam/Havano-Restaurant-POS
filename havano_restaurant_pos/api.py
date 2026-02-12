@@ -5190,8 +5190,12 @@ def update_my_shift_payments(payment_data):
     for row in shift_doc.shift_amounts:
         # find matching entry from JS tableData
         match = next(
-            (item for item in payment_data if f"{item["mode"]}_{item["currency"]}" == row.payment_method),
-            None
+        (
+            item
+            for item in payment_data
+            if f"{item['mode']}_{item['currency']}" == row.payment_method
+        ),
+        None
         )
         if match:
             row.amount_submitted = flt(match["submitted"])
