@@ -683,7 +683,7 @@ def process_table_payment(table, order_ids, total, amount=None, payment_method=N
                 "qty": item["qty"],
                 "rate": item["rate"],
             })
-            print(f"the item uom: -----------------------------------------{item["qty"],}")
+       
         
         inv = create_sales_invoice(customer, invoice_items)
         invoice_name = inv.get("name") if isinstance(inv, dict) else inv
