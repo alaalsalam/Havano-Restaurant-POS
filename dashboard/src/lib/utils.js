@@ -708,7 +708,8 @@ export async function getUserSettings() {
 }
 export async function negativeStock() {
   return attemptWithRetries(async () => {
-    const { message } = await call.post("havano_restaurant_pos.api.can_use_negative_stock");
+    // Use GET to avoid CSRF requirement (read-only check)
+    const { message } = await call.get("havano_restaurant_pos.api.can_use_negative_stock");
     return message;
   }, "Can Use Negative Stock");
 }

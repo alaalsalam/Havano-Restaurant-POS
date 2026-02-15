@@ -5166,6 +5166,9 @@ def can_use_negative_stock():
     try:
         settings = frappe.get_single("HA POS Settings")
         return bool(settings.allow_negative_stock)
+    except Exception as e:
+        frappe.log_error("Can Use Negative Stock Error", f"Error checking allow_negative_stock: {str(e)}\n{frappe.get_traceback()}")
+        return False
     except frappe.DoesNotExistError:
         return False  # no settings, treat as False
 
