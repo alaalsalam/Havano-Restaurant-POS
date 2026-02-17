@@ -5029,54 +5029,80 @@ def process_invoice_and_payment(
             "details": str(e),
         }
 
-# havano_restaurant_pos/api/shift.py
 import frappe
-from frappe import _  
-from datetime import datetime, timedelta
+from frappe.utils import nowdate, get_datetime, getdate
 
-@frappe.whitelist(allow_guest=False)
+@frappe.whitelist()
 def get_user_shift_status():
     """
     Returns the current shift status for the logged-in user.
-    Possible responses:
-    - "open": user has no open shift
-    - "continue": user has an open shift older than 24h
-    - "close": user has an open shift within 24h
-    """
-    user = frappe.session.user
-    now = datetime.now()
 
-    # get latest open shift for user
+    Status meanings:
+    - open     → user has no open shift
+    - continue → shift is older than 24h and not shown today
+    - close    → shift is < 24h OR already shown today
+    """
+
+    user = frappe.session.user
+    now = get_datetime()
+    today = getdate(nowdate())  # proper date object
+
+    # Get latest open shift
     shift = frappe.get_all(
         "HA Shift POS",
-        filters={"user": user, "status": "Open"},
+        filters={
+            "user": user,
+            "status": "Open"
+        },
+        fields=["name", "shift_start", "display_date"],
         order_by="shift_start desc",
-        limit_page_length=1,
-        fields=["name", "shift_start"]
+        limit_page_length=1
     )
 
     if not shift:
-        # no open shift, user should open one
         return {"status": "open"}
 
-    # there is an open shift
-    shift_start = shift[0].shift_start
-    if not isinstance(shift_start, datetime):
-        shift_start = frappe.utils.get_datetime(shift_start)
+    shift = shift[0]
+    shift_doc = frappe.get_doc("HA Shift POS", shift.name)
 
+    shift_start = get_datetime(shift_doc.shift_start)
     hours_open = (now - shift_start).total_seconds() / 3600
 
+    display_date = (
+        getdate(shift_doc.display_date)
+        if shift_doc.display_date
+        else None
+    )
+
+    # --- LOGIC ---
     if hours_open > 24:
-        print("-------------------old")
-        return {"status": "continue", "shift_name": shift[0].name}
-    else:
-        print("-------------------not old")
-        return {"status": "close", "shift_name": shift[0].name}
+        # Old shift
+        if display_date == today:
+            # Already displayed today
+            return {
+                "status": "close",
+                "shift_name": shift_doc.name
+            }
 
+        # First time showing today → mark display_date
+        shift_doc.db_set(
+            "display_date",
+            today,
+            commit=True
+        )
 
+        return {
+            "status": "continue",
+            "shift_name": shift_doc.name
+        }
+
+    # Shift still within 24h
+    return {
+        "status": "close",
+        "shift_name": shift_doc.name
+    }
 
 from frappe.utils import now_datetime  #
-
 @frappe.whitelist(allow_guest=False)
 def open_shift():
     frappe.local.form_dict._no_csrf = True  # disables CSRF for this request
